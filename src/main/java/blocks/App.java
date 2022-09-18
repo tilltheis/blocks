@@ -7,11 +7,11 @@ import com.jme3.input.controls.ActionListener;
 import com.jme3.input.controls.KeyTrigger;
 import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
-import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.shape.Box;
 import com.jme3.system.AppSettings;
+import com.simsilica.mathd.Vec3i;
 
 import java.util.Random;
 
@@ -41,12 +41,11 @@ public class App extends SimpleApplication {
 
   @Override
   public void simpleInitApp() {
-    flyCam.setMoveSpeed(500);
+    flyCam.setMoveSpeed(200);
     System.out.println("initial render distance: " + cam.getFrustumFar());
     cam.setFrustumFar(2048);
-    cam.setLocation(new Vector3f(0, 800, 0));
-    cam.lookAt(new Vector3f(0, 0, 0), new Vector3f(0, 1, 0));
-    cam.setRotation(new Quaternion(0, 0.75f, -0.75f, 0));
+    cam.setLocation(new Vector3f(30, 50, 30));
+    cam.lookAt(new Vector3f(0, 15, 0), new Vector3f(0, 1, 0));
 
     initNoise();
     initInputListeners();
@@ -56,15 +55,19 @@ public class App extends SimpleApplication {
     initMap();
   }
 
+  private void cleanup() {
+    rootNode.detachAllChildren();
+  }
+
   private void initInputListeners() {
-    inputManager.addMapping("regenerateMap", new KeyTrigger(KeyInput.KEY_R));
+    inputManager.addMapping("resetGame", new KeyTrigger(KeyInput.KEY_R));
     inputManager.addMapping("changeOctaveCount", new KeyTrigger(KeyInput.KEY_O));
     inputManager.addMapping("changeFrequencyDivisor", new KeyTrigger(KeyInput.KEY_F));
     inputManager.addMapping("changeLacunarity", new KeyTrigger(KeyInput.KEY_L));
     inputManager.addMapping("changeGain", new KeyTrigger(KeyInput.KEY_G));
     inputManager.addListener(
         (ActionListener) this::actionListener,
-        "regenerateMap",
+        "resetGame",
         "changeOctaveCount",
         "changeFrequencyDivisor",
         "changeLacunarity",
@@ -82,7 +85,11 @@ public class App extends SimpleApplication {
     if (keyPressed) return;
 
     switch (name) {
-      case "regenerateMap" -> System.out.println("regenerateMap");
+      case "resetGame" -> {
+        cleanup();
+        simpleInitApp();
+        System.out.println("resetGame");
+      }
 
       case "changeOctaveCount" -> {
         heightNoise.octaves =
@@ -121,23 +128,32 @@ public class App extends SimpleApplication {
 
   private void createCrosshair() {
     guiFont = assetManager.loadFont("Interface/Fonts/Default.fnt");
-    BitmapText ch = new BitmapText(guiFont);
-    ch.setSize(guiFont.getCharSet().getRenderedSize() * 2);
-    ch.setText("+");
-    ch.setLocalTranslation(
-        settings.getWidth() / 2 - ch.getLineWidth() / 2,
-        settings.getHeight() / 2 + ch.getLineHeight() / 2,
+    BitmapText crosshair = new BitmapText(guiFont);
+    crosshair.setSize(guiFont.getCharSet().getRenderedSize() * 2);
+    crosshair.setText("+");
+    crosshair.setLocalTranslation(
+        settings.getWidth() / 2 - crosshair.getLineWidth() / 2,
+        settings.getHeight() / 2 + crosshair.getLineHeight() / 2,
         0);
-    guiNode.attachChild(ch);
+    guiNode.attachChild(crosshair);
   }
 
   private void initMap() {
-    Box mesh = new Box(500, .5f, 500);
+    Box mesh = new Box(25, .5f, 25);
     Geometry geo = new Geometry("Box", mesh);
     Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
     mat.setColor("Color", ColorRGBA.fromRGBA255(10, 10, 10, 255));
     geo.setMaterial(mat);
     rootNode.attachChild(geo);
+
+    Chunk chunk = new Chunk(new Vec3i(0, 5, 0), new Vec3i(3, 3, 3), assetManager);
+    Block block = new Block(BlockType.GRASS);
+    chunk.setBlock(new Vec3i(1, 0, 1), block);
+    chunk.setBlock(new Vec3i(1, 1, 1), block);
+    for (int i = 0; i < 9; i++) {
+      chunk.setBlock(new Vec3i(i / 3, 2, i % 3), block);
+    }
+    rootNode.attachChild(chunk.getNode());
   }
 
   @Override
