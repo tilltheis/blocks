@@ -4,10 +4,11 @@ import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
-import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextFormatter;
+import javafx.scene.image.PixelWriter;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -19,7 +20,6 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.function.DoubleConsumer;
 import java.util.function.DoubleSupplier;
-import java.util.stream.LongStream;
 
 public class MapApp extends Application {
 
@@ -27,68 +27,168 @@ public class MapApp extends Application {
     launch();
   }
 
-  private static final int WIDTH = 640;
-  private static final int HEIGHT = 480;
-
   Canvas canvas;
 
   Noise heightNoise;
   Noise heatNoise;
 
-  Random heightRandom = new Random();
-  Random heatRandom = new Random();
+  boolean showTerrain = true;
+  boolean showHeight = true;
+  boolean showHeat = true;
+
+  double zoom = 100;
+  long heightSeed = 100;
+  long heatSeed = 200;
 
   @Override
   public void start(Stage stage) {
-    canvas = new Canvas(WIDTH, HEIGHT);
+    canvas = new Canvas();
 
-    heightNoise =
-        new Noise(4, 140, 2, 0, LongStream.range(0, 4).map(x -> heightRandom.nextLong()).toArray());
-    heatNoise =
-        new Noise(4, 140, 1.2, 3, LongStream.range(0, 4).map(x -> heatRandom.nextLong()).toArray());
+    heightNoise = new Noise(4, 0, 140, 2, 0, 10, new Random(heightSeed));
+    heatNoise = new Noise(4, 0, 100, 1.2, 0.5, 3, new Random(heatSeed));
 
-    GridPane heightGridPane = createNoiseParamUi("Height", heightNoise, heightRandom);
-    GridPane heatGridPane = createNoiseParamUi("Heat", heatNoise, heatRandom);
+    GridPane heightGridPane = createNoiseParamUi("Height", heightNoise);
+    GridPane heatGridPane = createNoiseParamUi("Heat", heatNoise);
+    GridPane mapGridPane = createMapParamUi();
 
-    Scene scene = new Scene(new VBox(new HBox(heightGridPane, heatGridPane), canvas));
+    HBox settingsHBox = new HBox(heightGridPane, heatGridPane, mapGridPane);
+    Scene scene = new Scene(new VBox(settingsHBox, canvas));
     stage.setTitle("Blocks Map");
+    stage.setResizable(false);
     stage.setScene(scene);
     stage.show();
+
+    canvas.setWidth(settingsHBox.getWidth());
+    canvas.setHeight(settingsHBox.getWidth() * 2 / 3);
+    stage.setHeight(stage.getHeight() + canvas.getHeight());
 
     drawCanvas();
   }
 
-  private GridPane createNoiseParamUi(String name, Noise noise, Random random) {
+  private GridPane createMapParamUi() {
+    Label titleLabel = new Label("Map Params");
+    titleLabel.setStyle("-fx-font-weight: bold");
+    Label showHeightLabel = new Label("Show Height");
+    CheckBox showHeightCheckBox = new CheckBox();
+    Label showTerrainLabel = new Label("Show Terrain");
+    CheckBox showTerrainCheckBox = new CheckBox();
+    Label showHeatLabel = new Label("Show Heat");
+    CheckBox showHeatCheckBox = new CheckBox();
+    Label zoomLabel = new Label("Zoom");
+    TextField zoomTextField = new TextField(Double.toString(zoom));
+    Label heightSeedLabel = new Label("Height Seed");
+    TextField heightSeedTextField = new TextField(Long.toString(heightSeed));
+    Label heatSeedLabel = new Label("Heat Seed");
+    TextField heatTextField = new TextField(Long.toString(heatSeed));
+
+    showHeightCheckBox.setSelected(true);
+    showTerrainCheckBox.setSelected(true);
+    showHeatCheckBox.setSelected(true);
+
+    showHeightCheckBox
+        .selectedProperty()
+        .addListener(
+            (x, y, isChecked) -> {
+              showHeight = isChecked;
+              drawCanvas();
+            });
+    showTerrainCheckBox
+        .selectedProperty()
+        .addListener(
+            (x, y, isChecked) -> {
+              showTerrain = isChecked;
+              drawCanvas();
+            });
+    showHeatCheckBox
+        .selectedProperty()
+        .addListener(
+            (x, y, isChecked) -> {
+              showHeat = isChecked;
+              drawCanvas();
+            });
+    initListeners(zoomTextField, zoom, 10, () -> zoom, x -> zoom = x);
+    initListeners(
+        heightSeedTextField,
+        heightSeed,
+        1,
+        () -> heightSeed,
+        x -> {
+          heightSeed = (long) x;
+          heightNoise.setRandom(new Random(heightSeed));
+          drawCanvas();
+        });
+    initListeners(
+        heatTextField,
+        heatSeed,
+        1,
+        () -> heatSeed,
+        x -> {
+          heatSeed = (long) x;
+          heatNoise.setRandom(new Random(heatSeed));
+          drawCanvas();
+        });
+
+    GridPane gridPane = new GridPane();
+    gridPane.setPadding(new Insets(10));
+    gridPane.setHgap(4);
+    gridPane.setVgap(8);
+
+    gridPane.add(titleLabel, 0, 0, 2, 1);
+    gridPane.add(showHeightLabel, 0, 1);
+    gridPane.add(showHeightCheckBox, 1, 1);
+    gridPane.add(showTerrainLabel, 0, 2);
+    gridPane.add(showTerrainCheckBox, 1, 2);
+    gridPane.add(showHeatLabel, 0, 3);
+    gridPane.add(showHeatCheckBox, 1, 3);
+    gridPane.add(zoomLabel, 0, 4);
+    gridPane.add(zoomTextField, 1, 4);
+    gridPane.add(heightSeedLabel, 0, 5);
+    gridPane.add(heightSeedTextField, 1, 5);
+    gridPane.add(heatSeedLabel, 0, 6);
+    gridPane.add(heatTextField, 1, 6);
+
+    return gridPane;
+  }
+
+  private GridPane createNoiseParamUi(String name, Noise noise) {
     Label titleLabel = new Label(name + " Noise Params");
     titleLabel.setStyle("-fx-font-weight: bold");
     Label octavesLabel = new Label("Octaves");
-    TextField octavesInput = new TextField(Integer.toString(noise.octaves));
+    TextField octavesTextField = new TextField(Integer.toString(noise.octaves));
+    Label startAmplitudeLabel = new Label("Start Amplitude");
+    TextField startAmplitudeTextField = new TextField(Double.toString(noise.startAmplitude));
     Label frequencyDivisorLabel = new Label("Frequency Divisor");
-    TextField frequencyDivisorInput = new TextField(Double.toString(noise.frequencyDivisor));
+    TextField frequencyDivisorTextField = new TextField(Double.toString(noise.frequencyDivisor));
     Label lacunarityLabel = new Label("Lacunarity");
-    TextField lacunarityInput = new TextField(Double.toString(noise.lacunarity));
+    TextField lacunarityTextField = new TextField(Double.toString(noise.lacunarity));
+    Label gainLabel = new Label("Gain");
+    TextField gainTextField = new TextField(Double.toString(noise.gain));
     Label granularityLabel = new Label("Granularity");
-    TextField granularityInput = new TextField(Double.toString(noise.granularity));
+    TextField granularityTextField = new TextField(Double.toString(noise.granularity));
 
     initListeners(
-        octavesInput,
-        noise.octaves,
-        1,
-        () -> noise.octaves,
-        x -> {
-          noise.octaves = (int) x;
-          noise.seeds = LongStream.range(0, noise.octaves).map(y -> random.nextLong()).toArray();
-        });
+        octavesTextField, noise.octaves, 1, () -> noise.octaves, x -> noise.octaves = (int) x);
     initListeners(
-        frequencyDivisorInput,
+        startAmplitudeTextField,
+        noise.startAmplitude,
+        0.1,
+        () -> noise.startAmplitude,
+        x -> noise.startAmplitude = x);
+    initListeners(
+        frequencyDivisorTextField,
         noise.frequencyDivisor,
         10,
         () -> noise.frequencyDivisor,
         x -> noise.frequencyDivisor = x);
     initListeners(
-        lacunarityInput, noise.lacunarity, 0.2, () -> noise.lacunarity, x -> noise.lacunarity = x);
+        lacunarityTextField,
+        noise.lacunarity,
+        0.2,
+        () -> noise.lacunarity,
+        x -> noise.lacunarity = x);
+    initListeners(gainTextField, noise.gain, 0.1, () -> noise.gain, x -> noise.gain = x);
     initListeners(
-        granularityInput,
+        granularityTextField,
         noise.granularity,
         0.1,
         () -> noise.granularity,
@@ -101,13 +201,17 @@ public class MapApp extends Application {
 
     gridPane.add(titleLabel, 0, 0, 2, 1);
     gridPane.add(octavesLabel, 0, 1);
-    gridPane.add(octavesInput, 1, 1);
-    gridPane.add(frequencyDivisorLabel, 0, 2);
-    gridPane.add(frequencyDivisorInput, 1, 2);
-    gridPane.add(lacunarityLabel, 0, 3);
-    gridPane.add(lacunarityInput, 1, 3);
-    gridPane.add(granularityLabel, 0, 4);
-    gridPane.add(granularityInput, 1, 4);
+    gridPane.add(octavesTextField, 1, 1);
+    gridPane.add(startAmplitudeLabel, 0, 2);
+    gridPane.add(startAmplitudeTextField, 1, 2);
+    gridPane.add(frequencyDivisorLabel, 0, 3);
+    gridPane.add(frequencyDivisorTextField, 1, 3);
+    gridPane.add(lacunarityLabel, 0, 4);
+    gridPane.add(lacunarityTextField, 1, 4);
+    gridPane.add(gainLabel, 0, 5);
+    gridPane.add(gainTextField, 1, 5);
+    gridPane.add(granularityLabel, 0, 6);
+    gridPane.add(granularityTextField, 1, 6);
 
     return gridPane;
   }
@@ -149,32 +253,45 @@ public class MapApp extends Application {
   }
 
   private void drawCanvas() {
-    GraphicsContext context = canvas.getGraphicsContext2D();
+    PixelWriter pixelWriter = canvas.getGraphicsContext2D().getPixelWriter();
 
-    for (int y = 0; y < HEIGHT; y++) {
-      for (int x = 0; x < WIDTH; x++) {
-        float height = heightNoise.getValue(x, y);
-        float heat = heatNoise.getValue(x, y);
-        // -1 => black, 0 => grey, +1 => white
-        Color heightColor = Color.BLACK.interpolate(Color.WHITE, (height + 1) / 2);
-        Color terrainColor;
-        if (height < -0.3) {
-          terrainColor = Color.BLUE;
-        } else if (height < 0.5) {
-          terrainColor = Color.GREEN;
-        } else {
-          terrainColor = Color.PERU;
+    for (int y = 0; y < canvas.getHeight(); y++) {
+      for (int x = 0; x < canvas.getWidth(); x++) {
+        int zoomedX = (int) (x / zoom * 100);
+        int zoomedY = (int) (y / zoom * 100);
+
+        Color color = Color.GREY;
+
+        if (showHeight || showTerrain) {
+          float height = heightNoise.getValue(zoomedX, zoomedY);
+
+          if (showTerrain) {
+            Color terrainColor;
+
+            if (height < -0.3) {
+              terrainColor =
+                  Color.DARKBLUE
+                      .interpolate(Color.BLUE, (height + 1) / 0.3)
+                      .deriveColor(0, 0.75, 1, 1);
+            } else {
+              terrainColor = Color.GREEN.interpolate(Color.PERU, (height + 0.7) / 1.3);
+            }
+
+            color = terrainColor;
+          } else if (showHeight) {
+            color = Color.BLACK.interpolate(Color.WHITE, (height + 1) / 2);
+          }
         }
 
-        Color color = terrainColor.deriveColor(0, 1, 1 + height * 0.5, 1);
-
-        if (heat != 0) {
-          Color heatColor = Color.LIGHTBLUE.interpolate(Color.TOMATO, (heat + 1) / 2).saturate();
-          color = color.interpolate(heatColor, 0.5);
+        if (showHeat) {
+          float heat = heatNoise.getValue(zoomedX, zoomedY);
+          if (heat != 0) {
+            Color heatColor = Color.LIGHTBLUE.interpolate(Color.TOMATO, (heat + 1) / 2).saturate();
+            color = color.interpolate(heatColor, 0.5);
+          }
         }
 
-        context.setFill(color);
-        context.fillRect(x, y, 1, 1);
+        pixelWriter.setColor(x, y, color);
       }
     }
   }
