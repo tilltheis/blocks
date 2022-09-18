@@ -90,9 +90,9 @@
             <version>3.5.2-stable</version>
         </dependency>
         <dependency>
-            <groupId>io.github.earcut4j</groupId>
-            <artifactId>earcut4j</artifactId>
-            <version>2.2.2</version>
+            <groupId>org.jmonkeyengine</groupId>
+            <artifactId>jme3-terrain</artifactId>
+            <version>3.5.2-stable</version>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>

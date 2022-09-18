@@ -1,23 +1,19 @@
 package blocks;
 
 import com.jme3.app.SimpleApplication;
-import com.jme3.font.BitmapFont;
 import com.jme3.font.BitmapText;
+import com.jme3.input.KeyInput;
+import com.jme3.input.controls.ActionListener;
+import com.jme3.input.controls.KeyTrigger;
 import com.jme3.material.Material;
-import com.jme3.math.*;
+import com.jme3.math.ColorRGBA;
+import com.jme3.math.Quaternion;
+import com.jme3.math.Vector3f;
 import com.jme3.scene.Geometry;
-import com.jme3.scene.Mesh;
-import com.jme3.scene.VertexBuffer;
 import com.jme3.scene.shape.Box;
-import com.jme3.scene.shape.Sphere;
 import com.jme3.system.AppSettings;
 
-import blocks.VoronoiDiagram.Point;
-import com.jme3.util.BufferUtils;
-import earcut4j.Earcut;
-
-import java.util.List;
-import java.util.stream.DoubleStream;
+import java.util.Random;
 
 public class App extends SimpleApplication {
 
@@ -34,108 +30,114 @@ public class App extends SimpleApplication {
     app.start();
   }
 
-  private World world;
+  Noise heightNoise;
+
+  boolean isShiftKeyPressed = false;
+
+  private void initNoise() {
+    long seed = 100;
+    heightNoise = new Noise(4, 0, 2000, 2, 0, 0, new Random(seed));
+  }
 
   @Override
   public void simpleInitApp() {
     flyCam.setMoveSpeed(500);
     System.out.println("initial render distance: " + cam.getFrustumFar());
     cam.setFrustumFar(2048);
-    //    cam.setLocation(new Vector3f(1024, 800, -1024));
     cam.setLocation(new Vector3f(0, 800, 0));
-    //    cam.lookAtDirection(new Vector3f(0, -1, 0), new Vector3f(0, 1, 0));
     cam.lookAt(new Vector3f(0, 0, 0), new Vector3f(0, 1, 0));
     cam.setRotation(new Quaternion(0, 0.75f, -0.75f, 0));
 
-    world = WorldGenerator.generateWorld();
+    initNoise();
+    initInputListeners();
 
-    // floor/background box
-    Box mesh = new Box(1200, .5f, 1200);
+    createCrosshair();
+
+    initMap();
+  }
+
+  private void initInputListeners() {
+    inputManager.addMapping("regenerateMap", new KeyTrigger(KeyInput.KEY_R));
+    inputManager.addMapping("changeOctaveCount", new KeyTrigger(KeyInput.KEY_O));
+    inputManager.addMapping("changeFrequencyDivisor", new KeyTrigger(KeyInput.KEY_F));
+    inputManager.addMapping("changeLacunarity", new KeyTrigger(KeyInput.KEY_L));
+    inputManager.addMapping("changeGain", new KeyTrigger(KeyInput.KEY_G));
+    inputManager.addListener(
+        (ActionListener) this::actionListener,
+        "regenerateMap",
+        "changeOctaveCount",
+        "changeFrequencyDivisor",
+        "changeLacunarity",
+        "changeGain");
+
+    inputManager.addMapping("recordShiftKeyPress", new KeyTrigger(KeyInput.KEY_LSHIFT));
+    inputManager.addListener((ActionListener) this::shiftActionListener, "recordShiftKeyPress");
+  }
+
+  private void shiftActionListener(String name, boolean keyPressed, float tpf) {
+    isShiftKeyPressed = keyPressed;
+  }
+
+  private void actionListener(String name, boolean keyPressed, float tpf) {
+    if (keyPressed) return;
+
+    switch (name) {
+      case "regenerateMap" -> System.out.println("regenerateMap");
+
+      case "changeOctaveCount" -> {
+        heightNoise.octaves =
+            isShiftKeyPressed ? Math.max(1, heightNoise.octaves - 1) : heightNoise.octaves + 1;
+        System.out.println("octaves = " + heightNoise.octaves);
+      }
+
+      case "changeFrequencyDivisor" -> {
+        heightNoise.frequencyDivisor =
+            isShiftKeyPressed
+                ? Math.max(1, heightNoise.frequencyDivisor - 10)
+                : heightNoise.frequencyDivisor + 10;
+        System.out.println("frequencyMultiplier = " + heightNoise.frequencyDivisor);
+      }
+
+      case "changeLacunarity" -> {
+        heightNoise.lacunarity =
+            isShiftKeyPressed
+                ? Math.max(0.1, heightNoise.lacunarity - 0.1)
+                : heightNoise.lacunarity + 0.1;
+        System.out.println("lacunarity = " + heightNoise.lacunarity);
+      }
+
+      case "changeGain" -> {
+        heightNoise.gain =
+            isShiftKeyPressed ? Math.max(0, heightNoise.gain - 0.01) : heightNoise.gain + 0.01;
+        System.out.println("gain = " + heightNoise.gain);
+      }
+    }
+
+    initNoise();
+
+    rootNode.detachAllChildren();
+    initMap();
+  }
+
+  private void createCrosshair() {
+    guiFont = assetManager.loadFont("Interface/Fonts/Default.fnt");
+    BitmapText ch = new BitmapText(guiFont);
+    ch.setSize(guiFont.getCharSet().getRenderedSize() * 2);
+    ch.setText("+");
+    ch.setLocalTranslation(
+        settings.getWidth() / 2 - ch.getLineWidth() / 2,
+        settings.getHeight() / 2 + ch.getLineHeight() / 2,
+        0);
+    guiNode.attachChild(ch);
+  }
+
+  private void initMap() {
+    Box mesh = new Box(500, .5f, 500);
     Geometry geo = new Geometry("Box", mesh);
-    geo.setLocalTranslation(1024, -50, -1024);
     Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
     mat.setColor("Color", ColorRGBA.fromRGBA255(10, 10, 10, 255));
     geo.setMaterial(mat);
-
     rootNode.attachChild(geo);
-
-    for (var biome : world.biomes()) {
-      createBiome(biome);
-    }
-  }
-
-  private void createBiome(Biome biome) {
-    ColorRGBA biomeColor = // ColorRGBA.randomColor();
-        switch (biome.type().color()) {
-          case GREEN -> ColorRGBA.Green;
-          case YELLOW -> ColorRGBA.Yellow;
-          case BLUE -> ColorRGBA.Blue;
-        };
-
-    {
-      Point bottomLeft = new Point(0, 0);
-      Point topRight = new Point(0, 0);
-
-      for (var point : biome.polygon()) {
-        if (point.x() < bottomLeft.x()) bottomLeft = new Point(point.x(), bottomLeft.y());
-        if (point.x() > topRight.x()) topRight = new Point(point.x(), topRight.y());
-        if (point.y() < bottomLeft.y()) bottomLeft = new Point(bottomLeft.x(), point.y());
-        if (point.y() > topRight.y()) topRight = new Point(topRight.x(), point.y());
-      }
-
-      double[] flatPolygon =
-          biome.polygon().stream()
-              .flatMapToDouble(vec2 -> DoubleStream.of(vec2.x() * 1.0d, vec2.y() * 1.0d))
-              .toArray();
-
-      Vector3f[] vertices =
-          biome.polygon().stream()
-              .map(point -> new Vector3f(point.x(), 0, -point.y()))
-              .toArray(Vector3f[]::new);
-      Vector2f[] textCoord =
-          biome.polygon().stream()
-              .map(point -> new Vector2f(point.x(), -point.y()))
-              .toArray(Vector2f[]::new);
-      int[] indexes = Earcut.earcut(flatPolygon).stream().mapToInt(i -> i).toArray();
-
-      Mesh mesh = new Mesh();
-      mesh.setBuffer(VertexBuffer.Type.Position, 3, BufferUtils.createFloatBuffer(vertices));
-      mesh.setBuffer(VertexBuffer.Type.TexCoord, 2, BufferUtils.createFloatBuffer(textCoord));
-      mesh.setBuffer(VertexBuffer.Type.Index, 3, BufferUtils.createIntBuffer(indexes));
-      mesh.updateBound();
-
-      Geometry geo = new Geometry("Biome", mesh);
-      Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-      mat.setColor("Color", biomeColor);
-      geo.setMaterial(mat);
-
-      rootNode.attachChild(geo);
-    }
-
-    //    for (Vec2 cell : biome.cells()) {
-    //      {
-    //        Sphere mesh = new Sphere(10, 10, 5);
-    //        Geometry geo = new Geometry("Box", mesh);
-    //        geo.setLocalTranslation(cell.x(), 10, -cell.y());
-    //        Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-    //        mat.setColor("Color", ColorRGBA.Black);
-    //        geo.setMaterial(mat);
-    //
-    //        rootNode.attachChild(geo);
-    //      }
-    //
-    //      {
-    //        BitmapFont font = assetManager.loadFont("Interface/Fonts/Default.fnt");
-    //        BitmapText text = new BitmapText(font);
-    //        text.setSize(font.getCharSet().getRenderedSize());
-    //        text.setText(cell.toString());
-    //        text.setColor(ColorRGBA.Red);
-    //        text.setLocalTranslation(cell.x() - 75, 10, -cell.y() - 5);
-    //        text.rotateUpTo(new Vector3f(0, 0, (float) Math.PI / -2));
-    //
-    //        rootNode.attachChild(text);
-    //      }
-    //    }
   }
 
   @Override
