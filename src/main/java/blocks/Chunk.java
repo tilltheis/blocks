@@ -11,51 +11,59 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.ToString;
 
+import java.util.Optional;
+
 // TODO optimize https://0fps.net/2012/01/14/an-analysis-of-minecraft-like-engines/
 @EqualsAndHashCode
 @ToString(onlyExplicitlyIncluded = true)
 public class Chunk {
-  @ToString.Include public final Vec3i location;
-  @ToString.Include public final Vec3i size;
+  @ToString.Include @Getter private final Vec3i location;
+  @ToString.Include @Getter private final Vec3i size;
   private final Block[][][] blocks;
-  private final AssetManager assetManager;
 
-  @Getter private final Node node = new Node();
+  @Getter private final Node node;
 
-  public Chunk(@NonNull Vec3i location, @NonNull Vec3i size, AssetManager assetManager) {
+  public Chunk(
+      @NonNull Vec3i location,
+      @NonNull Vec3i size,
+      @NonNull AssetManager assetManager,
+      @NonNull BlockAtFunction blockAt) {
     this.location = location;
     this.size = size;
 
-    blocks = new Block[size.y][size.x][size.z];
-    this.assetManager = assetManager;
+    this.node = new Node();
+    node.setLocalTranslation(
+        this.location.x * size.x, this.location.y * size.y, this.location.z * size.z);
+
+    blocks = new Block[size.x][size.y][size.z];
+    initBlocksAndNode(assetManager, blockAt);
   }
 
-  public void setBlock(@NonNull Vec3i location, Block block) {
-    if (location.x < 0
-        || location.y < 0
-        || location.z < 0
-        || location.x >= size.x
-        || location.y >= size.y
-        || location.z >= size.z)
-      throw new IllegalArgumentException(location + " out of bounds for " + this);
-
-    if (blocks[location.y][location.x][location.z] != null)
-      node.detachChildNamed("Block " + location.x + " " + location.y + " " + location.z);
-
-    blocks[location.y][location.x][location.z] = block;
-    if (block != null) attachToNode(location, block);
+  private void initBlocksAndNode(
+      @NonNull AssetManager assetManager, @NonNull BlockAtFunction blockAt) {
+    for (int x = 0; x < size.x; x++) {
+      for (int y = 0; y < size.y; y++) {
+        for (int z = 0; z < size.z; z++) {
+          Optional<Block> maybeBlock =
+              blockAt.apply(
+                  location.x * size.x + x, location.y * size.y + y, location.z * size.z + z);
+          if (maybeBlock.isPresent()) {
+            blocks[x][y][z] = maybeBlock.get();
+            attachToNode(location.add(x, y, z), maybeBlock.get(), assetManager);
+          }
+        }
+      }
+    }
   }
 
-  public void attachToNode(@NonNull Vec3i location, @NonNull Block block) {
+  private void attachToNode(
+      @NonNull Vec3i location, @NonNull Block block, @NonNull AssetManager assetManager) {
     Box mesh = new Box(.5f, .5f, .5f);
     Geometry geo = new Geometry("Block " + location.x + " " + location.y + " " + location.z, mesh);
     Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
     mat.setColor("Color", block.type.color);
     geo.setMaterial(mat);
-    geo.setLocalTranslation(
-        new Vec3i(location.x, location.y, location.z)
-            .add(this.location.x * size.x, this.location.y * size.y, this.location.z * size.z)
-            .toVector3f());
+    geo.setLocalTranslation(location.x, location.y, location.z);
     node.attachChild(geo);
   }
 }

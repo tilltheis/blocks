@@ -5,14 +5,11 @@ import com.jme3.font.BitmapText;
 import com.jme3.input.KeyInput;
 import com.jme3.input.controls.ActionListener;
 import com.jme3.input.controls.KeyTrigger;
-import com.jme3.material.Material;
-import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
-import com.jme3.scene.Geometry;
-import com.jme3.scene.shape.Box;
 import com.jme3.system.AppSettings;
 import com.simsilica.mathd.Vec3i;
 
+import java.util.Optional;
 import java.util.Random;
 
 public class App extends SimpleApplication {
@@ -30,7 +27,15 @@ public class App extends SimpleApplication {
     app.start();
   }
 
+  private static final int CHUNK_WIDTH = 32;
+  private static final int CHUNK_HEIGHT = 16;
+  private static final int CHUNK_DEPTH = 32;
+
+  private static final int GRID_DIMENSION = 1;
+
   Noise heightNoise;
+
+  Chunk[][] chunks;
 
   boolean isShiftKeyPressed = false;
 
@@ -42,10 +47,10 @@ public class App extends SimpleApplication {
   @Override
   public void simpleInitApp() {
     flyCam.setMoveSpeed(200);
-    System.out.println("initial render distance: " + cam.getFrustumFar());
-    cam.setFrustumFar(2048);
-    cam.setLocation(new Vector3f(30, 50, 30));
-    cam.lookAt(new Vector3f(0, 15, 0), new Vector3f(0, 1, 0));
+    cam.setFrustumFar(2048); // default is 1000
+    cam.setLocation(new Vector3f(-30, 50, -30));
+    cam.lookAt(
+        new Vector3f(CHUNK_WIDTH / 2, CHUNK_HEIGHT / 2, CHUNK_DEPTH / 2), new Vector3f(0, 1, 0));
 
     initNoise();
     initInputListeners();
@@ -139,21 +144,34 @@ public class App extends SimpleApplication {
   }
 
   private void initMap() {
-    Box mesh = new Box(25, .5f, 25);
-    Geometry geo = new Geometry("Box", mesh);
-    Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-    mat.setColor("Color", ColorRGBA.fromRGBA255(10, 10, 10, 255));
-    geo.setMaterial(mat);
-    rootNode.attachChild(geo);
-
-    Chunk chunk = new Chunk(new Vec3i(0, 5, 0), new Vec3i(3, 3, 3), assetManager);
-    Block block = new Block(BlockType.GRASS);
-    chunk.setBlock(new Vec3i(1, 0, 1), block);
-    chunk.setBlock(new Vec3i(1, 1, 1), block);
-    for (int i = 0; i < 9; i++) {
-      chunk.setBlock(new Vec3i(i / 3, 2, i % 3), block);
+    chunks = new Chunk[GRID_DIMENSION][GRID_DIMENSION];
+    for (int x = 0; x < GRID_DIMENSION; x++) {
+      for (int z = 0; z < GRID_DIMENSION; z++) {
+        Chunk chunk =
+            new Chunk(
+                new Vec3i(x, 0, z),
+                new Vec3i(CHUNK_WIDTH, CHUNK_HEIGHT, CHUNK_DEPTH),
+                assetManager,
+                this::blockAt);
+        chunks[x][z] = chunk;
+        rootNode.attachChild(chunk.getNode());
+      }
     }
-    rootNode.attachChild(chunk.getNode());
+  }
+
+  private static final Block dirtBlock = new Block(BlockType.DIRT);
+  private static final Block grassBlock = new Block(BlockType.GRASS);
+  private static final Optional<Block> someDirtBlock = Optional.of(dirtBlock);
+  private static final Optional<Block> someGrassBlock = Optional.of(grassBlock);
+
+  private Optional<Block> blockAt(int x, int y, int z) {
+    float height = heightNoise.getValue(x * 100, z * 100);
+    int scaledHeight = (int) ((height + 1) / 2 * CHUNK_HEIGHT);
+
+    if (y < scaledHeight) return someDirtBlock;
+    if (y == scaledHeight) return someGrassBlock;
+
+    return Optional.empty();
   }
 
   @Override
