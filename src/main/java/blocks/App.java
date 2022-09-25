@@ -5,6 +5,10 @@ import com.jme3.font.BitmapText;
 import com.jme3.input.KeyInput;
 import com.jme3.input.controls.ActionListener;
 import com.jme3.input.controls.KeyTrigger;
+import com.jme3.light.AmbientLight;
+import com.jme3.light.DirectionalLight;
+import com.jme3.light.Light;
+import com.jme3.math.ColorRGBA;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.system.AppSettings;
@@ -47,7 +51,7 @@ public class App extends SimpleApplication {
 
   @Override
   public void simpleInitApp() {
-    flyCam.setMoveSpeed(200);
+    flyCam.setMoveSpeed(50);
     cam.setFrustumFar(2048); // default is 1000
     cam.setLocation(new Vector3f(-30, 50, -30));
     cam.lookAt(
@@ -63,18 +67,33 @@ public class App extends SimpleApplication {
     createCrosshair();
 
     initMap();
+
+    rootNode.addLight(new AmbientLight(new ColorRGBA(0.2f, 0.2f, 0.2f, 1f)));
+    rootNode.addLight(
+        new DirectionalLight(
+            new Vector3f(-0.1f, -1f, -0.1f).normalizeLocal(), new ColorRGBA(2f, 2f, 2f, 1f)));
   }
 
   private void cleanup() {
     rootNode.detachAllChildren();
+
+    for (Light light : rootNode.getLocalLightList()) {
+      rootNode.removeLight(light);
+    }
+
     inputManager.deleteMapping("resetGame");
     inputManager.deleteMapping("changeOctaveCount");
     inputManager.deleteMapping("changeFrequencyDivisor");
     inputManager.deleteMapping("changeLacunarity");
     inputManager.deleteMapping("changeGain");
-    inputManager.removeListener((ActionListener) this::actionListener);
+    inputManager.removeListener((ActionListener) this::mapActionListener);
+
     inputManager.deleteMapping("recordShiftKeyPress");
     inputManager.removeListener((ActionListener) this::shiftActionListener);
+
+    inputManager.deleteMapping("attachOneChild");
+    inputManager.deleteMapping("attachAllChildren");
+    inputManager.removeListener((ActionListener) this::meshActionListener);
   }
 
   private void initInputListeners() {
@@ -84,7 +103,7 @@ public class App extends SimpleApplication {
     inputManager.addMapping("changeLacunarity", new KeyTrigger(KeyInput.KEY_L));
     inputManager.addMapping("changeGain", new KeyTrigger(KeyInput.KEY_G));
     inputManager.addListener(
-        (ActionListener) this::actionListener,
+        (ActionListener) this::mapActionListener,
         "resetGame",
         "changeOctaveCount",
         "changeFrequencyDivisor",
@@ -93,13 +112,33 @@ public class App extends SimpleApplication {
 
     inputManager.addMapping("recordShiftKeyPress", new KeyTrigger(KeyInput.KEY_LSHIFT));
     inputManager.addListener((ActionListener) this::shiftActionListener, "recordShiftKeyPress");
+
+    inputManager.addMapping("attachOneChild", new KeyTrigger(KeyInput.KEY_1));
+    inputManager.addMapping("attachAllChildren", new KeyTrigger(KeyInput.KEY_2));
+    inputManager.addListener(
+        (ActionListener) this::meshActionListener, "attachOneChild", "attachAllChildren");
+  }
+
+  private void meshActionListener(String name, boolean keyPressed, float tpf) {
+    if (keyPressed) return;
+
+    switch (name) {
+      case "attachOneChild" -> {
+        if (isShiftKeyPressed) {
+          chunks[0][0].detachOneChild();
+        } else {
+          chunks[0][0].attachOneChild();
+        }
+      }
+      case "attachAllChildren" -> chunks[0][0].attachAllChildren();
+    }
   }
 
   private void shiftActionListener(String name, boolean keyPressed, float tpf) {
     isShiftKeyPressed = keyPressed;
   }
 
-  private void actionListener(String name, boolean keyPressed, float tpf) {
+  private void mapActionListener(String name, boolean keyPressed, float tpf) {
     if (keyPressed) return;
 
     switch (name) {

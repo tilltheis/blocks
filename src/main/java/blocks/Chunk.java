@@ -12,6 +12,7 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.ToString;
 
+import java.text.MessageFormat;
 import java.util.Optional;
 
 // TODO optimize https://0fps.net/2012/01/14/an-analysis-of-minecraft-like-engines/
@@ -59,8 +60,13 @@ public class Chunk {
     }
   }
 
+  Node tmpNode = new Node();
+
   private void initNode(AssetManager assetManager) {
-    Node node = new Node();
+    //    Node node = new Node();
+    Node node = tmpNode;
+
+    boolean[][][] mask = new boolean[size.x][size.y][size.z];
 
     for (int z = 0; z < size.z; z++) {
       for (int y = 0; y < size.y; y++) {
@@ -68,13 +74,42 @@ public class Chunk {
         int xLen = 0;
 
         for (int x = 0; x < size.x; x++) {
+          if (mask[x][y][z]) {
+            xStart = x + 1;
+            continue;
+          }
+
           Block block = getBlock(x, y, z);
           if (block != null) {
             xLen += 1;
-            if (x + 1 == size.x || !block.equals(getBlock(x + 1, y, z))) {
+            if (x + 1 == size.x || mask[x + 1][y][z] || !block.equals(getBlock(x + 1, y, z))) {
+
+              int minZLen = size.z - z;
+
+              for (int innerX = x - xLen + 1; innerX < x + 1; innerX++) {
+                int zLen = 0;
+
+                for (int innerZ = z; innerZ < z + minZLen; innerZ++) {
+                  zLen += 1;
+                  if (innerZ + 1 == size.z
+                      || mask[innerX][y][innerZ]
+                      || !block.equals(getBlock(innerX, y, innerZ + 1))) {
+                    minZLen = Math.min(minZLen, zLen);
+                  }
+                }
+              }
+
+              for (int innerX = x - xLen + 1; innerX < x + 1; innerX++) {
+                for (int innerZ = z; innerZ < z + minZLen; innerZ++) {
+                  mask[innerX][y][innerZ] = true;
+                }
+              }
+
               Spatial box =
-                  createBox(new Vec3i(xStart, y, z), new Vec3i(xLen, 1, 1), block, assetManager);
+                  createBox(
+                      new Vec3i(xStart, y, z), new Vec3i(xLen, 1, minZLen), block, assetManager);
               node.attachChild(box);
+
               xStart = x + 1;
               xLen = 0;
             }
@@ -86,7 +121,31 @@ public class Chunk {
       }
     }
 
-    this.node.attachChild(node);
+    //    this.node.attachChild(node);
+    attachAllChildren();
+  }
+
+  public void attachAllChildren() {
+    for (Spatial child : tmpNode.getChildren()) {
+      node.attachChild(child);
+    }
+    tmpNode.detachAllChildren();
+  }
+
+  public void attachOneChild() {
+    if (tmpNode.getQuantity() > 0) {
+      Spatial child = tmpNode.detachChildAt(0);
+      node.attachChild(child);
+      System.out.println("Attached " + child.getName());
+    }
+  }
+
+  public void detachOneChild() {
+    if (node.getQuantity() > 0) {
+      Spatial child = node.detachChildAt(node.getQuantity() - 1);
+      tmpNode.attachChildAt(child, 0);
+      System.out.println("Detached " + child.getName());
+    }
   }
 
   private Block getBlock(int x, int y, int z) {
@@ -103,9 +162,14 @@ public class Chunk {
       @NonNull Block block,
       @NonNull AssetManager assetManager) {
     Box mesh = new Box(size.x / 2f, size.y / 2f, size.z / 2f);
-    Geometry geo = new Geometry("Block " + location.x + " " + location.y + " " + location.z, mesh);
-    Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-    mat.setColor("Color", block.type.color);
+    Geometry geo =
+        new Geometry(
+            MessageFormat.format("block={0} location={1} size={2}", block, location, size), mesh);
+    Material mat = new Material(assetManager, "Common/MatDefs/Light/Lighting.j3md");
+    mat.setBoolean("UseMaterialColors", true);
+    mat.setColor("Ambient", block.type.color);
+    mat.setColor("Diffuse", block.type.color);
+
     geo.setMaterial(mat);
     geo.setLocalTranslation(
         location.x + size.x / 2f, location.y + size.y / 2f, location.z + size.z / 2f);
