@@ -99,15 +99,39 @@ public class Chunk {
                 }
               }
 
+              int minYLen = size.y - y;
+
+              for (int innerX = x - xLen + 1; innerX < x + 1; innerX++) {
+
+                for (int innerZ = z; innerZ < z + minZLen; innerZ++) {
+                  int yLen = 0;
+
+                  for (int innerY = y; innerY < y + minYLen; innerY++) {
+                    yLen += 1;
+
+                    if (innerY + 1 == size.y
+                        || mask[innerX][innerY][innerZ]
+                        || !block.equals(getBlock(innerX, innerY + 1, innerZ))) {
+                      minYLen = Math.min(minYLen, yLen);
+                    }
+                  }
+                }
+              }
+
               for (int innerX = x - xLen + 1; innerX < x + 1; innerX++) {
                 for (int innerZ = z; innerZ < z + minZLen; innerZ++) {
-                  mask[innerX][y][innerZ] = true;
+                  for (int innerY = y; innerY < y + minYLen; innerY++) {
+                    mask[innerX][innerY][innerZ] = true;
+                  }
                 }
               }
 
               Spatial box =
                   createBox(
-                      new Vec3i(xStart, y, z), new Vec3i(xLen, 1, minZLen), block, assetManager);
+                      new Vec3i(xStart, y, z),
+                      new Vec3i(xLen, minYLen, minZLen),
+                      block,
+                      assetManager);
               node.attachChild(box);
 
               xStart = x + 1;
@@ -120,6 +144,8 @@ public class Chunk {
         }
       }
     }
+
+    System.out.println("node.getQuantity() = " + node.getQuantity());
 
     //    this.node.attachChild(node);
     attachAllChildren();
