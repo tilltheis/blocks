@@ -14,6 +14,7 @@ import lombok.ToString;
 
 import java.text.MessageFormat;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 // TODO optimize https://0fps.net/2012/01/14/an-analysis-of-minecraft-like-engines/
 @EqualsAndHashCode
@@ -60,9 +61,29 @@ public class Chunk {
     }
   }
 
+  private int equalBlockCountInDirection(
+      @NonNull Block block,
+      @NonNull Vec3i start,
+      @NonNull Vec3i step,
+      boolean[][] @NonNull [] mask) {
+    int length = 1;
+    Vec3i nextPosition = start.add(step);
+
+    while (size.x > nextPosition.x
+        && size.y > nextPosition.y
+        && size.z > nextPosition.z
+        && !mask[nextPosition.x][nextPosition.y][nextPosition.z]
+        && block.equals(getBlock(nextPosition.x, nextPosition.y, nextPosition.z))) {
+      length += 1;
+      nextPosition.addLocal(step);
+    }
+
+    return length;
+  }
+
   Node tmpNode = new Node();
 
-  private void initNode(AssetManager assetManager) {
+  private void initNode(@NonNull AssetManager assetManager) {
     //    Node node = new Node();
     Node node = tmpNode;
 
@@ -70,76 +91,49 @@ public class Chunk {
 
     for (int z = 0; z < size.z; z++) {
       for (int y = 0; y < size.y; y++) {
-        int xStart = 0;
-        int xLen = 0;
-
         for (int x = 0; x < size.x; x++) {
-          if (mask[x][y][z]) {
-            xStart = x + 1;
-            continue;
-          }
+          if (mask[x][y][z]) continue;
 
           Block block = getBlock(x, y, z);
           if (block != null) {
-            xLen += 1;
-            if (x + 1 == size.x || mask[x + 1][y][z] || !block.equals(getBlock(x + 1, y, z))) {
+            Vec3i start = new Vec3i(x, y, z);
+            int xLen = equalBlockCountInDirection(block, start, new Vec3i(1, 0, 0), mask);
 
-              int minZLen = size.z - z;
+            int zLen =
+                IntStream.range(0, xLen)
+                    .map(
+                        offset ->
+                            equalBlockCountInDirection(
+                                block, start.add(offset, 0, 0), new Vec3i(0, 0, 1), mask))
+                    .min()
+                    .getAsInt();
 
-              for (int innerX = x - xLen + 1; innerX < x + 1; innerX++) {
-                int zLen = 0;
+            int yLen =
+                IntStream.range(0, xLen)
+                    .flatMap(
+                        xOffset ->
+                            IntStream.range(0, zLen)
+                                .map(
+                                    zOffset ->
+                                        equalBlockCountInDirection(
+                                            block,
+                                            start.add(xOffset, 0, zOffset),
+                                            new Vec3i(0, 1, 0),
+                                            mask)))
+                    .min()
+                    .getAsInt();
 
-                for (int innerZ = z; innerZ < z + minZLen; innerZ++) {
-                  zLen += 1;
-                  if (innerZ + 1 == size.z
-                      || mask[innerX][y][innerZ]
-                      || !block.equals(getBlock(innerX, y, innerZ + 1))) {
-                    minZLen = Math.min(minZLen, zLen);
-                  }
+            for (int i = 0; i < xLen; i++) {
+              for (int k = 0; k < zLen; k++) {
+                for (int j = 0; j < yLen; j++) {
+                  mask[x + i][y + j][z + k] = true;
                 }
               }
-
-              int minYLen = size.y - y;
-
-              for (int innerX = x - xLen + 1; innerX < x + 1; innerX++) {
-
-                for (int innerZ = z; innerZ < z + minZLen; innerZ++) {
-                  int yLen = 0;
-
-                  for (int innerY = y; innerY < y + minYLen; innerY++) {
-                    yLen += 1;
-
-                    if (innerY + 1 == size.y
-                        || mask[innerX][innerY][innerZ]
-                        || !block.equals(getBlock(innerX, innerY + 1, innerZ))) {
-                      minYLen = Math.min(minYLen, yLen);
-                    }
-                  }
-                }
-              }
-
-              for (int innerX = x - xLen + 1; innerX < x + 1; innerX++) {
-                for (int innerZ = z; innerZ < z + minZLen; innerZ++) {
-                  for (int innerY = y; innerY < y + minYLen; innerY++) {
-                    mask[innerX][innerY][innerZ] = true;
-                  }
-                }
-              }
-
-              Spatial box =
-                  createBox(
-                      new Vec3i(xStart, y, z),
-                      new Vec3i(xLen, minYLen, minZLen),
-                      block,
-                      assetManager);
-              node.attachChild(box);
-
-              xStart = x + 1;
-              xLen = 0;
             }
-          } else {
-            xStart = x + 1;
-            xLen = 0;
+
+            Spatial box =
+                createBox(new Vec3i(x, y, z), new Vec3i(xLen, yLen, zLen), block, assetManager);
+            node.attachChild(box);
           }
         }
       }
@@ -147,8 +141,8 @@ public class Chunk {
 
     System.out.println("node.getQuantity() = " + node.getQuantity());
 
-    //    this.node.attachChild(node);
-    attachAllChildren();
+    this.node.attachChild(node);
+    //        attachAllChildren();
   }
 
   public void attachAllChildren() {
