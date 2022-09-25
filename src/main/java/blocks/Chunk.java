@@ -3,9 +3,11 @@ package blocks;
 import com.jme3.asset.AssetManager;
 import com.jme3.material.Material;
 import com.jme3.scene.Geometry;
+import com.jme3.scene.Mesh;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
 import com.jme3.scene.shape.Box;
+import com.jme3.scene.shape.Quad;
 import com.simsilica.mathd.Vec3i;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -38,7 +40,7 @@ public class Chunk {
     this.size = size;
 
     blocks = new Block[size.x][size.y][size.z];
-    initBlocks(assetManager, blockAt);
+    initBlocks(blockAt);
 
     this.node = new Node();
     node.setLocalTranslation(
@@ -46,7 +48,7 @@ public class Chunk {
     initNode(assetManager);
   }
 
-  private void initBlocks(@NonNull AssetManager assetManager, @NonNull BlockAtFunction blockAt) {
+  private void initBlocks(@NonNull BlockAtFunction blockAt) {
     for (int x = 0; x < size.x; x++) {
       for (int y = 0; y < size.y; y++) {
         for (int z = 0; z < size.z; z++) {
@@ -65,20 +67,40 @@ public class Chunk {
       @NonNull Block block,
       @NonNull Vec3i start,
       @NonNull Vec3i step,
-      boolean[][] @NonNull [] mask) {
+      boolean @NonNull [] @NonNull [] @NonNull [] mask) {
     int length = 1;
-    Vec3i nextPosition = start.add(step);
+    Vec3i nextLocation = start.add(step);
 
-    while (size.x > nextPosition.x
-        && size.y > nextPosition.y
-        && size.z > nextPosition.z
-        && !mask[nextPosition.x][nextPosition.y][nextPosition.z]
-        && block.equals(getBlock(nextPosition.x, nextPosition.y, nextPosition.z))) {
+    while (size.x > nextLocation.x
+        && size.y > nextLocation.y
+        && size.z > nextLocation.z
+        // && isVisible(block, nextLocation) // slightly more objects
+        && !mask[nextLocation.x][nextLocation.y][nextLocation.z]
+        && block.equals(getBlock(nextLocation.x, nextLocation.y, nextLocation.z))) {
       length += 1;
-      nextPosition.addLocal(step);
+      nextLocation.addLocal(step);
     }
 
     return length;
+  }
+
+  private boolean isVisible(@NonNull Block block, @NonNull Vec3i location) {
+    return !hasBlockAt(location.add(0, 1, 0))
+        || !hasBlockAt(location.add(0, -1, 0))
+        || !hasBlockAt(location.add(1, 0, 0))
+        || !hasBlockAt(location.add(-1, 0, 0))
+        || !hasBlockAt(location.add(0, 0, 1))
+        || !hasBlockAt(location.add(0, 0, -1));
+  }
+
+  private boolean hasBlockAt(@NonNull Vec3i location) {
+    return location.x > 0
+        && location.y > 0
+        && location.z > 0
+        && location.x < size.x
+        && location.y < size.y
+        && location.z < size.z
+        && blocks[location.x][location.y][location.z] != null;
   }
 
   Node tmpNode = new Node();
@@ -95,16 +117,17 @@ public class Chunk {
           if (mask[x][y][z]) continue;
 
           Block block = getBlock(x, y, z);
-          if (block != null) {
-            Vec3i start = new Vec3i(x, y, z);
-            int xLen = equalBlockCountInDirection(block, start, new Vec3i(1, 0, 0), mask);
+          Vec3i location = new Vec3i(x, y, z);
+
+          if (block != null && isVisible(block, location)) {
+            int xLen = equalBlockCountInDirection(block, location, new Vec3i(1, 0, 0), mask);
 
             int zLen =
                 IntStream.range(0, xLen)
                     .map(
                         offset ->
                             equalBlockCountInDirection(
-                                block, start.add(offset, 0, 0), new Vec3i(0, 0, 1), mask))
+                                block, location.add(offset, 0, 0), new Vec3i(0, 0, 1), mask))
                     .min()
                     .getAsInt();
 
@@ -117,7 +140,7 @@ public class Chunk {
                                     zOffset ->
                                         equalBlockCountInDirection(
                                             block,
-                                            start.add(xOffset, 0, zOffset),
+                                            location.add(xOffset, 0, zOffset),
                                             new Vec3i(0, 1, 0),
                                             mask)))
                     .min()
@@ -181,7 +204,8 @@ public class Chunk {
       @NonNull Vec3i size,
       @NonNull Block block,
       @NonNull AssetManager assetManager) {
-    Box mesh = new Box(size.x / 2f, size.y / 2f, size.z / 2f);
+    //    Mesh mesh = new Quad(size.x, size.y);
+    Mesh mesh = new Box(size.x / 2f, size.y / 2f, size.z / 2f);
     Geometry geo =
         new Geometry(
             MessageFormat.format("block={0} location={1} size={2}", block, location, size), mesh);
@@ -191,6 +215,7 @@ public class Chunk {
     mat.setColor("Diffuse", block.type.color);
 
     geo.setMaterial(mat);
+    //    geo.setLocalTranslation(location.x, location.y, location.z);
     geo.setLocalTranslation(
         location.x + size.x / 2f, location.y + size.y / 2f, location.z + size.z / 2f);
     return geo;

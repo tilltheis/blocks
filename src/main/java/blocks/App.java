@@ -36,7 +36,7 @@ public class App extends SimpleApplication {
   private static final int CHUNK_HEIGHT = 16;
   private static final int CHUNK_DEPTH = 32;
 
-  private static final int GRID_DIMENSION = 1;
+  private static final int GRID_DIMENSION = 5;
 
   Noise heightNoise;
 
