@@ -13,7 +13,6 @@ import com.jme3.math.Vector3f;
 import com.jme3.system.AppSettings;
 import com.simsilica.mathd.Vec3i;
 
-import java.util.Optional;
 import java.util.Random;
 
 public class App extends SimpleApplication {
@@ -32,29 +31,37 @@ public class App extends SimpleApplication {
   }
 
   private static final int CHUNK_WIDTH = 32;
-  private static final int CHUNK_HEIGHT = 16;
+  private static final int CHUNK_HEIGHT = 32;
   private static final int CHUNK_DEPTH = 32;
 
-  private static final int GRID_DIMENSION = 5;
+  private static final int GRID_DIMENSION = 15;
+  private static final int GRID_HEIGHT = 3;
+
+  private static final int WORLD_HEIGHT = GRID_HEIGHT * CHUNK_HEIGHT;
 
   Noise heightNoise;
 
-  Chunk[][] chunks;
+  Chunk[][][] chunks;
 
   boolean isShiftKeyPressed = false;
 
   private void initNoise() {
     long seed = 100;
-    heightNoise = new Noise(4, 0, 2000, 2, 0, 0, new Random(seed));
+    heightNoise = new Noise(10, 0, 2000, 2, 0, 0, new Random(seed));
   }
 
   @Override
   public void simpleInitApp() {
-    flyCam.setMoveSpeed(50);
+    flyCam.setMoveSpeed(250);
     cam.setFrustumFar(2048); // default is 1000
-    cam.setLocation(new Vector3f(CHUNK_WIDTH / 2f, CHUNK_HEIGHT + 15, -30));
+    cam.setLocation(
+        new Vector3f(GRID_DIMENSION * CHUNK_WIDTH / 2f, WORLD_HEIGHT * 1.5f, CHUNK_DEPTH * -3));
     cam.lookAt(
-        new Vector3f(CHUNK_WIDTH / 2f, CHUNK_HEIGHT / 2f, CHUNK_DEPTH / 2f), new Vector3f(0, 1, 0));
+        new Vector3f(
+            GRID_DIMENSION * CHUNK_WIDTH / 2f,
+            WORLD_HEIGHT / 2f,
+            GRID_DIMENSION * CHUNK_DEPTH / 2f),
+        new Vector3f(0, GRID_HEIGHT / 2f, 0));
 
     initNoise();
     initInputListeners();
@@ -167,34 +174,46 @@ public class App extends SimpleApplication {
   }
 
   private void initMap() {
-    chunks = new Chunk[GRID_DIMENSION][GRID_DIMENSION];
+    chunks = new Chunk[GRID_DIMENSION][GRID_HEIGHT][GRID_DIMENSION];
     for (int x = 0; x < GRID_DIMENSION; x++) {
-      for (int z = 0; z < GRID_DIMENSION; z++) {
-        Chunk chunk =
-            new Chunk(
-                new Vec3i(x, 0, z),
-                new Vec3i(CHUNK_WIDTH, CHUNK_HEIGHT, CHUNK_DEPTH),
-                assetManager,
-                this::blockAt);
-        chunks[x][z] = chunk;
-        rootNode.attachChild(chunk.getNode());
+      for (int y = 0; y < GRID_HEIGHT; y++) {
+        for (int z = 0; z < GRID_DIMENSION; z++) {
+          Chunk chunk =
+              new Chunk(
+                  new Vec3i(x, y, z),
+                  new Vec3i(CHUNK_WIDTH, CHUNK_HEIGHT, CHUNK_DEPTH),
+                  createBlocks(x, y, z),
+                  assetManager);
+          chunks[x][y][z] = chunk;
+          rootNode.attachChild(chunk.getNode());
+        }
       }
     }
   }
 
   private static final Block dirtBlock = new Block(BlockType.DIRT);
   private static final Block grassBlock = new Block(BlockType.GRASS);
-  private static final Optional<Block> someDirtBlock = Optional.of(dirtBlock);
-  private static final Optional<Block> someGrassBlock = Optional.of(grassBlock);
 
-  private Optional<Block> blockAt(int x, int y, int z) {
-    float height = heightNoise.getValue(x * 100, z * 100);
-    int scaledHeight = (int) ((height + 1) / 2 * CHUNK_HEIGHT);
+  private Block[][][] createBlocks(int locationX, int locationY, int locationZ) {
+    Block[][][] blocks = new Block[CHUNK_WIDTH][CHUNK_HEIGHT][CHUNK_DEPTH];
 
-    if (y < scaledHeight) return someDirtBlock;
-    if (y == scaledHeight) return someGrassBlock;
+    for (int x = 0; x < CHUNK_WIDTH; x++) {
+      for (int z = 0; z < CHUNK_DEPTH; z++) {
+        float height =
+            heightNoise.getValue(
+                (locationX * CHUNK_WIDTH + x) * 2 - 100, (locationZ * CHUNK_DEPTH + z) * 2);
+        int scaledHeight = (int) ((height + 1) / 2 * WORLD_HEIGHT);
 
-    return Optional.empty();
+        for (int y = 0; y < CHUNK_HEIGHT && y <= scaledHeight - (locationY * CHUNK_HEIGHT); y++) {
+          Block block;
+          if (locationY * CHUNK_HEIGHT + y < scaledHeight) block = dirtBlock;
+          else block = grassBlock;
+          blocks[x][y][z] = block;
+        }
+      }
+    }
+
+    return blocks;
   }
 
   @Override

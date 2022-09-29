@@ -47,36 +47,19 @@ public class Chunk {
   public Chunk(
       @NonNull Vec3i location,
       @NonNull Vec3i size,
-      @NonNull AssetManager assetManager,
-      @NonNull BlockAtFunction blockAt) {
+      @NonNull Block[][][] blocks,
+      @NonNull AssetManager assetManager) {
     if (size.x < 1 || size.y < 1 || size.z < 1)
       throw new IllegalArgumentException("all size values must be > 0 but got " + size);
 
     this.location = location;
     this.size = size;
-
-    blocks = new Block[size.x][size.y][size.z];
-    initBlocks(blockAt);
+    this.blocks = blocks;
 
     this.node = new Node();
     node.setLocalTranslation(
         this.location.x * size.x, this.location.y * size.y, this.location.z * size.z);
     initNode(assetManager);
-  }
-
-  private void initBlocks(@NonNull BlockAtFunction blockAt) {
-    for (int x = 0; x < size.x; x++) {
-      for (int y = 0; y < size.y; y++) {
-        for (int z = 0; z < size.z; z++) {
-          Optional<Block> maybeBlock =
-              blockAt.apply(
-                  location.x * size.x + x, location.y * size.y + y, location.z * size.z + z);
-          if (maybeBlock.isPresent()) {
-            setBlock(x, y, z, maybeBlock.get());
-          }
-        }
-      }
-    }
   }
 
   private int equalBlockCountInDirection(
