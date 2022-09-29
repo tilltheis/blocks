@@ -285,7 +285,6 @@ public class Chunk {
     material.setColor("Diffuse", block.type.color);
 
     geometry.setMaterial(material);
-    geometry.setLocalTranslation(location.x, location.y, location.z);
 
     return geometry;
   }
