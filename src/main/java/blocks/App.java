@@ -13,6 +13,7 @@ import com.jme3.math.Vector3f;
 import com.jme3.system.AppSettings;
 import com.simsilica.mathd.Vec3i;
 
+import java.util.LinkedList;
 import java.util.Random;
 
 public class App extends SimpleApplication {
@@ -34,16 +35,18 @@ public class App extends SimpleApplication {
   private static final int CHUNK_HEIGHT = 32;
   private static final int CHUNK_DEPTH = 32;
 
-  private static final int GRID_DIMENSION = 15;
+  private static final int GRID_DIMENSION = 10;
   private static final int GRID_HEIGHT = 3;
 
   private static final int WORLD_HEIGHT = GRID_HEIGHT * CHUNK_HEIGHT;
 
   Noise heightNoise;
 
-  Chunk[][][] chunks;
+  LinkedList<LinkedList<LinkedList<Chunk>>> chunks;
 
   boolean isShiftKeyPressed = false;
+
+  private Vec3i playerGridLocation = new Vec3i(GRID_DIMENSION / 2, 0, GRID_DIMENSION / 2);
 
   private void initNoise() {
     long seed = 100;
@@ -77,6 +80,8 @@ public class App extends SimpleApplication {
   }
 
   private void cleanup() {
+    playerGridLocation = new Vec3i(GRID_DIMENSION / 2, 0, GRID_DIMENSION / 2);
+
     rootNode.detachAllChildren();
 
     for (Light light : rootNode.getLocalLightList()) {
@@ -174,17 +179,33 @@ public class App extends SimpleApplication {
   }
 
   private void initMap() {
-    chunks = new Chunk[GRID_DIMENSION][GRID_HEIGHT][GRID_DIMENSION];
+    LinkedList<LinkedList<LinkedList<Chunk>>> xs = new LinkedList<>();
+    chunks = xs;
+
     for (int x = 0; x < GRID_DIMENSION; x++) {
+      LinkedList<LinkedList<Chunk>> ys = new LinkedList<>();
+      xs.add(ys);
+
       for (int y = 0; y < GRID_HEIGHT; y++) {
+        LinkedList<Chunk> zs = new LinkedList<>();
+        ys.add(zs);
+
         for (int z = 0; z < GRID_DIMENSION; z++) {
+          Vec3i location =
+              new Vec3i(
+                  cam.getLocation()
+                      .divide(new Vector3f(CHUNK_WIDTH, 1, CHUNK_DEPTH))
+                      .addLocal(
+                          GRID_DIMENSION / -2f + x,
+                          -cam.getLocation().y + y,
+                          GRID_DIMENSION / -2f + z));
           Chunk chunk =
               new Chunk(
-                  new Vec3i(x, y, z),
+                  location,
                   new Vec3i(CHUNK_WIDTH, CHUNK_HEIGHT, CHUNK_DEPTH),
-                  createBlocks(x, y, z),
+                  createBlocks(location.x, location.y, location.z),
                   assetManager);
-          chunks[x][y][z] = chunk;
+          zs.add(chunk);
           rootNode.attachChild(chunk.getNode());
         }
       }
@@ -219,5 +240,110 @@ public class App extends SimpleApplication {
   @Override
   public void simpleUpdate(float tpf) {
     super.simpleUpdate(tpf);
+
+    // round because both (int)-0.9f and (int)+0.9f result in 0, effectively spanning 2 ints
+    Vec3i newPlayerGridLocation =
+        new Vec3i(
+            Math.round(cam.getLocation().x / CHUNK_WIDTH),
+            0,
+            Math.round((cam.getLocation().z / CHUNK_DEPTH)));
+
+    while (newPlayerGridLocation.x != playerGridLocation.x) {
+      boolean isPlus = newPlayerGridLocation.x > playerGridLocation.x;
+
+      // remove
+      {
+        for (LinkedList<Chunk> zs : (isPlus ? chunks.getFirst() : chunks.getLast())) {
+          for (Chunk chunk : zs) {
+            rootNode.detachChild(chunk.getNode());
+          }
+        }
+
+        if (isPlus) chunks.removeFirst();
+        else chunks.removeLast();
+      }
+
+      // add
+      {
+        LinkedList<LinkedList<Chunk>> ys = new LinkedList<>();
+        if (isPlus) chunks.addLast(ys);
+        else chunks.addFirst(ys);
+
+        for (int y = 0; y < GRID_HEIGHT; y++) {
+          LinkedList<Chunk> zs = new LinkedList<>();
+          ys.add(zs);
+
+          for (int z = 0; z < GRID_DIMENSION; z++) {
+            int x = isPlus ? GRID_DIMENSION - 1 : 0;
+            Vec3i location =
+                new Vec3i(
+                    cam.getLocation()
+                        .divide(new Vector3f(CHUNK_WIDTH, 1, CHUNK_DEPTH))
+                        .addLocal(
+                            GRID_DIMENSION / -2f + x,
+                            -cam.getLocation().y + y,
+                            GRID_DIMENSION / -2f + z));
+            Chunk chunk =
+                new Chunk(
+                    location,
+                    new Vec3i(CHUNK_WIDTH, CHUNK_HEIGHT, CHUNK_DEPTH),
+                    createBlocks(location.x, location.y, location.z),
+                    assetManager);
+            zs.add(chunk);
+            rootNode.attachChild(chunk.getNode());
+          }
+        }
+      }
+
+      playerGridLocation.x += isPlus ? 1 : -1;
+    }
+
+    while (newPlayerGridLocation.z != playerGridLocation.z) {
+      boolean isPlus = newPlayerGridLocation.z > playerGridLocation.z;
+
+      int x = 0;
+      for (LinkedList<LinkedList<Chunk>> ys : chunks) {
+        int y = 0;
+
+        for (LinkedList<Chunk> zs : ys) {
+          // remove
+          {
+            Chunk chunk = isPlus ? zs.getFirst() : zs.getLast();
+            rootNode.detachChild(chunk.getNode());
+
+            if (isPlus) zs.removeFirst();
+            else zs.removeLast();
+          }
+
+          // add
+          {
+            int z = isPlus ? GRID_DIMENSION - 1 : 0;
+            Vec3i location =
+                new Vec3i(
+                    cam.getLocation()
+                        .divide(new Vector3f(CHUNK_WIDTH, 1, CHUNK_DEPTH))
+                        .addLocal(
+                            GRID_DIMENSION / -2f + x,
+                            -cam.getLocation().y + y,
+                            GRID_DIMENSION / -2f + z));
+            Chunk chunk =
+                new Chunk(
+                    location,
+                    new Vec3i(CHUNK_WIDTH, CHUNK_HEIGHT, CHUNK_DEPTH),
+                    createBlocks(location.x, location.y, location.z),
+                    assetManager);
+            if (isPlus) zs.addLast(chunk);
+            else zs.addFirst(chunk);
+            rootNode.attachChild(chunk.getNode());
+          }
+
+          y += 1;
+        }
+
+        x += 1;
+      }
+
+      playerGridLocation.z += isPlus ? 1 : -1;
+    }
   }
 }
