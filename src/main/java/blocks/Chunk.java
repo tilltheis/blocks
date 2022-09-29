@@ -2,11 +2,11 @@ package blocks;
 
 import com.jme3.asset.AssetManager;
 import com.jme3.material.Material;
-import com.jme3.material.RenderState;
-import com.jme3.math.*;
-import com.jme3.renderer.queue.RenderQueue;
+import com.jme3.math.FastMath;
+import com.jme3.math.Quaternion;
+import com.jme3.math.Vector2f;
+import com.jme3.math.Vector3f;
 import com.jme3.scene.*;
-import com.jme3.scene.shape.Box;
 import com.jme3.util.BufferUtils;
 import com.simsilica.mathd.Vec3i;
 import lombok.EqualsAndHashCode;
@@ -62,8 +62,6 @@ public class Chunk {
     node.setLocalTranslation(
         this.location.x * size.x, this.location.y * size.y, this.location.z * size.z);
     initNode(assetManager);
-
-    naiveInitNode(assetManager);
   }
 
   private void initBlocks(@NonNull BlockAtFunction blockAt) {
@@ -116,8 +114,6 @@ public class Chunk {
         && location.z < size.z
         && blocks[location.x][location.y][location.z] != null;
   }
-
-  Node tmpNode = new Node();
 
   private void initNode(@NonNull AssetManager assetManager) {
     List<Vector3f> vertices = new ArrayList<>();
@@ -231,7 +227,7 @@ public class Chunk {
       }
     }
 
-    Spatial box =
+    Spatial mesh =
         createMesh(
             new Block(BlockType.DIRT),
             vertices,
@@ -239,31 +235,7 @@ public class Chunk {
             indexes,
             normals,
             assetManager);
-    this.node.attachChild(box);
-    //        attachAllChildren();
-  }
-
-  public void attachAllChildren() {
-    for (Spatial child : tmpNode.getChildren()) {
-      node.attachChild(child);
-    }
-    tmpNode.detachAllChildren();
-  }
-
-  public void attachOneChild() {
-    if (tmpNode.getQuantity() > 0) {
-      Spatial child = tmpNode.detachChildAt(0);
-      node.attachChild(child);
-      System.out.println("Attached " + child.getName());
-    }
-  }
-
-  public void detachOneChild() {
-    if (node.getQuantity() > 0) {
-      Spatial child = node.detachChildAt(node.getQuantity() - 1);
-      tmpNode.attachChildAt(child, 0);
-      System.out.println("Detached " + child.getName());
-    }
+    this.node.attachChild(mesh);
   }
 
   private Block getBlock(int x, int y, int z) {
@@ -281,7 +253,7 @@ public class Chunk {
       @NonNull List<Integer> indexes,
       @NonNull List<Float> normals,
       @NonNull AssetManager assetManager) {
-    System.out.println("vertices.size() = " + vertices.size());
+    //    System.out.println("vertices.size() = " + vertices.size());
 
     Mesh mesh = new Mesh();
 
@@ -299,84 +271,16 @@ public class Chunk {
     mesh.updateBound();
 
     String name = MessageFormat.format("block={0} location={1} size={2}", block, location, size);
-    Geometry geo = new Geometry(name, mesh);
+    Geometry geometry = new Geometry(name, mesh);
 
-    Material mat = new Material(assetManager, "Common/MatDefs/Light/Lighting.j3md");
-    mat.setBoolean("UseMaterialColors", true);
-    mat.setColor("Ambient", block.type.color);
-    mat.setColor("Diffuse", block.type.color);
+    Material material = new Material(assetManager, "Common/MatDefs/Light/Lighting.j3md");
+    material.setBoolean("UseMaterialColors", true);
+    material.setColor("Ambient", block.type.color);
+    material.setColor("Diffuse", block.type.color);
 
-    geo.setMaterial(mat);
-    geo.setLocalTranslation(location.x, location.y, location.z);
+    geometry.setMaterial(material);
+    geometry.setLocalTranslation(location.x, location.y, location.z);
 
-    return geo;
-  }
-
-  private Spatial createDebugBox(@NonNull AssetManager assetManager) {
-    Box box = new Box(.5f, .5f, .5f);
-    Geometry geo = new Geometry("floor", box);
-    Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-    mat.setColor("Color", ColorRGBA.Gray.setAlpha(.25f));
-    mat.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
-    geo.setQueueBucket(RenderQueue.Bucket.Transparent);
-    geo.setMaterial(mat);
-    //    geo.setLocalTranslation(box.xExtent, box.yExtent, box.zExtent);
-    geo.setLocalTranslation(box.xExtent + 6, box.yExtent + 10, box.zExtent + 2);
-    return geo;
-  }
-
-  private void naiveInitNode(AssetManager assetManager) {
-    Node node = new Node();
-
-    for (int z = 0; z < size.z; z++) {
-      for (int y = 0; y < size.y; y++) {
-        int xStart = 0;
-        int xLen = 0;
-
-        for (int x = 0; x < size.x; x++) {
-          Block block = getBlock(x, y, z);
-          if (block != null) {
-            xLen += 1;
-            if (x + 1 == size.x || !block.equals(getBlock(x + 1, y, z))) {
-              Spatial box =
-                  naiveCreateBox(
-                      new Vec3i(xStart, y, z), new Vec3i(xLen, 1, 1), block, assetManager);
-              node.attachChild(box);
-              xStart = x + 1;
-              xLen = 0;
-            }
-          } else {
-            xStart = x + 1;
-            xLen = 0;
-          }
-        }
-      }
-    }
-
-    node.setLocalTranslation(50, 0, 0);
-
-    this.node.attachChild(node);
-  }
-
-  private Spatial naiveCreateBox(
-      @NonNull Vec3i location,
-      @NonNull Vec3i size,
-      @NonNull Block block,
-      @NonNull AssetManager assetManager) {
-    Box mesh = new Box(size.x / 2f, size.y / 2f, size.z / 2f);
-    Geometry geo = new Geometry("Block " + location.x + " " + location.y + " " + location.z, mesh);
-
-    Material mat = new Material(assetManager, "Common/MatDefs/Light/Lighting.j3md");
-    mat.setBoolean("UseMaterialColors", true);
-    mat.setColor("Ambient", block.type.color);
-    mat.setColor("Diffuse", block.type.color);
-
-    geo.setMaterial(mat);
-    geo.setLocalTranslation(location.x, location.y, location.z);
-    node.attachChild(geo);
-    geo.setLocalTranslation(
-        location.x + size.x / 2f, location.y + size.y / 2f, location.z + size.z / 2f);
-
-    return geo;
+    return geometry;
   }
 }

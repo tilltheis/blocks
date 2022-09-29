@@ -9,7 +9,6 @@ import com.jme3.light.AmbientLight;
 import com.jme3.light.DirectionalLight;
 import com.jme3.light.Light;
 import com.jme3.math.ColorRGBA;
-import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.system.AppSettings;
 import com.simsilica.mathd.Vec3i;
@@ -53,9 +52,9 @@ public class App extends SimpleApplication {
   public void simpleInitApp() {
     flyCam.setMoveSpeed(50);
     cam.setFrustumFar(2048); // default is 1000
-    cam.setLocation(new Vector3f(CHUNK_WIDTH / 2, CHUNK_HEIGHT + 15, -30));
+    cam.setLocation(new Vector3f(CHUNK_WIDTH / 2f, CHUNK_HEIGHT + 15, -30));
     cam.lookAt(
-        new Vector3f(CHUNK_WIDTH / 2, CHUNK_HEIGHT / 2, CHUNK_DEPTH / 2), new Vector3f(0, 1, 0));
+        new Vector3f(CHUNK_WIDTH / 2f, CHUNK_HEIGHT / 2f, CHUNK_DEPTH / 2f), new Vector3f(0, 1, 0));
 
     initNoise();
     initInputListeners();
@@ -86,10 +85,6 @@ public class App extends SimpleApplication {
 
     inputManager.deleteMapping("recordShiftKeyPress");
     inputManager.removeListener((ActionListener) this::shiftActionListener);
-
-    inputManager.deleteMapping("attachOneChild");
-    inputManager.deleteMapping("attachAllChildren");
-    inputManager.removeListener((ActionListener) this::meshActionListener);
   }
 
   private void initInputListeners() {
@@ -108,26 +103,6 @@ public class App extends SimpleApplication {
 
     inputManager.addMapping("recordShiftKeyPress", new KeyTrigger(KeyInput.KEY_LSHIFT));
     inputManager.addListener((ActionListener) this::shiftActionListener, "recordShiftKeyPress");
-
-    inputManager.addMapping("attachOneChild", new KeyTrigger(KeyInput.KEY_1));
-    inputManager.addMapping("attachAllChildren", new KeyTrigger(KeyInput.KEY_2));
-    inputManager.addListener(
-        (ActionListener) this::meshActionListener, "attachOneChild", "attachAllChildren");
-  }
-
-  private void meshActionListener(String name, boolean keyPressed, float tpf) {
-    if (keyPressed) return;
-
-    switch (name) {
-      case "attachOneChild" -> {
-        if (isShiftKeyPressed) {
-          chunks[0][0].detachOneChild();
-        } else {
-          chunks[0][0].attachOneChild();
-        }
-      }
-      case "attachAllChildren" -> chunks[0][0].attachAllChildren();
-    }
   }
 
   private void shiftActionListener(String name, boolean keyPressed, float tpf) {
@@ -185,8 +160,8 @@ public class App extends SimpleApplication {
     crosshair.setSize(guiFont.getCharSet().getRenderedSize() * 2);
     crosshair.setText("+");
     crosshair.setLocalTranslation(
-        settings.getWidth() / 2 - crosshair.getLineWidth() / 2,
-        settings.getHeight() / 2 + crosshair.getLineHeight() / 2,
+        settings.getWidth() / 2f - crosshair.getLineWidth() / 2,
+        settings.getHeight() / 2f + crosshair.getLineHeight() / 2,
         0);
     guiNode.attachChild(crosshair);
   }
