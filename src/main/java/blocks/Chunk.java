@@ -40,7 +40,7 @@ public class Chunk {
           new Quaternion().fromAngleAxis(-FastMath.HALF_PI, Vector3f.UNIT_Y),
           new Vec3i(-1, 0, 0),
           new Quaternion().fromAngleAxis(FastMath.HALF_PI, Vector3f.UNIT_Y));
-  private final Vector2f[] meshTextureCoords = {
+  private final Vector2f[] meshTextureCoordinates = {
     new Vector2f(0, 0), new Vector2f(1, 0), new Vector2f(0, 1), new Vector2f(1, 1)
   };
 
@@ -83,32 +83,24 @@ public class Chunk {
 
   private int equalBlockCountInDirection(
       @NonNull Block block,
-      @NonNull Vec3i start,
-      @NonNull Vec3i step,
+      @NonNull Vec3i location,
+      @NonNull Vec3i axisDirection,
+      @NonNull Vec3i visibilityDirection,
       boolean @NonNull [] @NonNull [] @NonNull [] mask) {
     int length = 1;
-    Vec3i nextLocation = start.add(step);
+    Vec3i nextLocation = location.add(axisDirection);
 
     while (size.x > nextLocation.x
         && size.y > nextLocation.y
         && size.z > nextLocation.z
-        // && isVisible(nextLocation) // slightly more objects
+        && isVisibleFrom(nextLocation, visibilityDirection)
         && !mask[nextLocation.x][nextLocation.y][nextLocation.z]
         && block.equals(getBlock(nextLocation.x, nextLocation.y, nextLocation.z))) {
       length += 1;
-      nextLocation.addLocal(step);
+      nextLocation.addLocal(axisDirection);
     }
 
     return length;
-  }
-
-  private boolean isVisible(@NonNull Vec3i location) {
-    return !hasBlockAt(location.add(0, 1, 0))
-        || !hasBlockAt(location.add(0, -1, 0))
-        || !hasBlockAt(location.add(1, 0, 0))
-        || !hasBlockAt(location.add(-1, 0, 0))
-        || !hasBlockAt(location.add(0, 0, 1))
-        || !hasBlockAt(location.add(0, 0, -1));
   }
 
   private boolean isVisibleFrom(@NonNull Vec3i location, @NonNull Vec3i direction) {
@@ -128,117 +120,111 @@ public class Chunk {
   Node tmpNode = new Node();
 
   private void initNode(@NonNull AssetManager assetManager) {
-    //    Node node = new Node();
-    //    Node node = tmpNode;
     List<Vector3f> vertices = new ArrayList<>();
-    List<Vector2f> texCoord = new ArrayList<>();
+    List<Vector2f> textureCoordinates = new ArrayList<>();
     List<Integer> indexes = new ArrayList<>();
     List<Float> normals = new ArrayList<>();
 
-    boolean[][][] mask = new boolean[size.x][size.y][size.z];
+    for (Map.Entry<Vec3i, Quaternion> entry : rotationForDirection.entrySet()) {
+      Vec3i direction = entry.getKey();
 
-    for (int z = 0; z < size.z; z++) {
-      for (int y = 0; y < size.y; y++) {
-        for (int x = 0; x < size.x; x++) {
-          if (mask[x][y][z]) continue;
+      boolean[][][] mask = new boolean[size.x][size.y][size.z];
 
-          Block block = getBlock(x, y, z);
-          Vec3i location = new Vec3i(x, y, z);
+      for (int z = 0; z < size.z; z++) {
+        for (int y = 0; y < size.y; y++) {
+          for (int x = 0; x < size.x; x++) {
+            if (mask[x][y][z]) continue;
 
-          if (block != null && isVisible(location)) {
-            int xLen = equalBlockCountInDirection(block, location, new Vec3i(1, 0, 0), mask);
+            Block block = getBlock(x, y, z);
+            Vec3i location = new Vec3i(x, y, z);
 
-            int zLen =
-                IntStream.range(0, xLen)
-                    .map(
-                        offset ->
-                            equalBlockCountInDirection(
-                                block, location.add(offset, 0, 0), new Vec3i(0, 0, 1), mask))
-                    .min()
-                    .getAsInt();
+            if (block != null && isVisibleFrom(location, direction)) {
+              int xLen =
+                  equalBlockCountInDirection(block, location, new Vec3i(1, 0, 0), direction, mask);
 
-            int yLen =
-                IntStream.range(0, xLen)
-                    .flatMap(
-                        xOffset ->
-                            IntStream.range(0, zLen)
-                                .map(
-                                    zOffset ->
-                                        equalBlockCountInDirection(
-                                            block,
-                                            location.add(xOffset, 0, zOffset),
-                                            new Vec3i(0, 1, 0),
-                                            mask)))
-                    .min()
-                    .getAsInt();
+              int zLen =
+                  IntStream.range(0, xLen)
+                      .map(
+                          offset ->
+                              equalBlockCountInDirection(
+                                  block,
+                                  location.add(offset, 0, 0),
+                                  new Vec3i(0, 0, 1),
+                                  direction,
+                                  mask))
+                      .min()
+                      .getAsInt();
 
-            for (int i = 0; i < xLen; i++) {
-              for (int k = 0; k < zLen; k++) {
-                for (int j = 0; j < yLen; j++) {
-                  mask[x + i][y + j][z + k] = true;
+              int yLen =
+                  IntStream.range(0, xLen)
+                      .flatMap(
+                          xOffset ->
+                              IntStream.range(0, zLen)
+                                  .map(
+                                      zOffset ->
+                                          equalBlockCountInDirection(
+                                              block,
+                                              location.add(xOffset, 0, zOffset),
+                                              new Vec3i(0, 1, 0),
+                                              direction,
+                                              mask)))
+                      .min()
+                      .getAsInt();
+
+              for (int i = 0; i < xLen; i++) {
+                for (int k = 0; k < zLen; k++) {
+                  for (int j = 0; j < yLen; j++) {
+                    mask[x + i][y + j][z + k] = true;
+                  }
                 }
               }
-            }
 
-            if (x <= 2 && x + xLen > 2 && y <= 9 && y + yLen > 9 && z <= 31 && z + zLen > 31) {
-              System.out.println(
-                  MessageFormat.format(
-                      "x={0} xLen={1} y={2} yLen={3} z={4} zLen={5}", x, xLen, y, yLen, z, zLen));
-            }
+              Quaternion rotation = entry.getValue();
+              Vector3f lowerLeftRotation = rotation.mult(new Vector3f(-1, -1, -1));
+              Vector3f lowerRightRotation = rotation.mult(new Vector3f(1, -1, -1));
+              Vector3f upperLeftRotation = rotation.mult(new Vector3f(-1, 1, -1));
+              Vector3f upperRightRotation = rotation.mult(new Vector3f(1, 1, -1));
 
-            for (Map.Entry<Vec3i, Quaternion> entry : rotationForDirection.entrySet()) {
-              Vec3i direction = entry.getKey();
-              Vec3i visibilityLocation =
-                  location.add(xLen * direction.x, yLen * direction.y, zLen * direction.z);
+              int index = vertices.size();
 
-              if (isVisibleFrom(visibilityLocation, direction)) {
-                Quaternion rotation = entry.getValue();
-                Vector3f lowerLeftRotation = rotation.mult(new Vector3f(-1, -1, -1));
-                Vector3f lowerRightRotation = rotation.mult(new Vector3f(1, -1, -1));
-                Vector3f upperLeftRotation = rotation.mult(new Vector3f(-1, 1, -1));
-                Vector3f upperRightRotation = rotation.mult(new Vector3f(1, 1, -1));
+              Collections.addAll(
+                  vertices,
+                  new Vector3f(
+                      x + xLen * (lowerLeftRotation.x > 0 ? 1 : 0),
+                      y + yLen * (lowerLeftRotation.y > 0 ? 1 : 0),
+                      z + zLen * (lowerLeftRotation.z > 0 ? 1 : 0)),
+                  new Vector3f(
+                      x + xLen * (lowerRightRotation.x > 0 ? 1 : 0),
+                      y + yLen * (lowerRightRotation.y > 0 ? 1 : 0),
+                      z + zLen * (lowerRightRotation.z > 0 ? 1 : 0)),
+                  new Vector3f(
+                      x + xLen * (upperLeftRotation.x > 0 ? 1 : 0),
+                      y + yLen * (upperLeftRotation.y > 0 ? 1 : 0),
+                      z + zLen * (upperLeftRotation.z > 0 ? 1 : 0)),
+                  new Vector3f(
+                      x + xLen * (upperRightRotation.x > 0 ? 1 : 0),
+                      y + yLen * (upperRightRotation.y > 0 ? 1 : 0),
+                      z + zLen * (upperRightRotation.z > 0 ? 1 : 0)));
 
-                int index = vertices.size();
+              Collections.addAll(textureCoordinates, meshTextureCoordinates);
 
-                Collections.addAll(
-                    vertices,
-                    new Vector3f(
-                        x + xLen * (lowerLeftRotation.x > 0 ? 1 : 0),
-                        y + yLen * (lowerLeftRotation.y > 0 ? 1 : 0),
-                        z + zLen * (lowerLeftRotation.z > 0 ? 1 : 0)),
-                    new Vector3f(
-                        x + xLen * (lowerRightRotation.x > 0 ? 1 : 0),
-                        y + yLen * (lowerRightRotation.y > 0 ? 1 : 0),
-                        z + zLen * (lowerRightRotation.z > 0 ? 1 : 0)),
-                    new Vector3f(
-                        x + xLen * (upperLeftRotation.x > 0 ? 1 : 0),
-                        y + yLen * (upperLeftRotation.y > 0 ? 1 : 0),
-                        z + zLen * (upperLeftRotation.z > 0 ? 1 : 0)),
-                    new Vector3f(
-                        x + xLen * (upperRightRotation.x > 0 ? 1 : 0),
-                        y + yLen * (upperRightRotation.y > 0 ? 1 : 0),
-                        z + zLen * (upperRightRotation.z > 0 ? 1 : 0)));
+              Collections.addAll(
+                  indexes, index + 2, index + 3, index + 1, index + 1, index + 0, index + 2);
 
-                Collections.addAll(texCoord, meshTextureCoords);
-
-                Collections.addAll(
-                    indexes, index + 2, index + 3, index + 1, index + 1, index + 0, index + 2);
-
-                Collections.addAll(
-                    normals,
-                    (float) direction.x,
-                    (float) direction.y,
-                    (float) direction.z,
-                    (float) direction.x,
-                    (float) direction.y,
-                    (float) direction.z,
-                    (float) direction.x,
-                    (float) direction.y,
-                    (float) direction.z,
-                    (float) direction.x,
-                    (float) direction.y,
-                    (float) direction.z);
-              }
+              Collections.addAll(
+                  normals,
+                  (float) direction.x,
+                  (float) direction.y,
+                  (float) direction.z,
+                  (float) direction.x,
+                  (float) direction.y,
+                  (float) direction.z,
+                  (float) direction.x,
+                  (float) direction.y,
+                  (float) direction.z,
+                  (float) direction.x,
+                  (float) direction.y,
+                  (float) direction.z);
             }
           }
         }
@@ -246,12 +232,10 @@ public class Chunk {
     }
 
     Spatial box =
-        createBox(
-            new Vec3i(0, 0, 0),
-            size,
+        createMesh(
             new Block(BlockType.DIRT),
             vertices,
-            texCoord,
+            textureCoordinates,
             indexes,
             normals,
             assetManager);
@@ -290,19 +274,19 @@ public class Chunk {
     blocks[x][y][z] = block;
   }
 
-  private Spatial createBox(
-      @NonNull Vec3i location,
-      @NonNull Vec3i size,
+  private Spatial createMesh(
       @NonNull Block block,
       @NonNull List<Vector3f> vertices,
-      @NonNull List<Vector2f> texCoord,
+      @NonNull List<Vector2f> textureCoordinates,
       @NonNull List<Integer> indexes,
       @NonNull List<Float> normals,
       @NonNull AssetManager assetManager) {
+    System.out.println("vertices.size() = " + vertices.size());
+
     Mesh mesh = new Mesh();
 
     Vector3f[] verticesArray = vertices.toArray(Vector3f[]::new);
-    Vector2f[] texCoordArray = texCoord.toArray(Vector2f[]::new);
+    Vector2f[] texCoordArray = textureCoordinates.toArray(Vector2f[]::new);
     int[] indexesArray = indexes.stream().mapToInt(x -> x).toArray();
     float[] normalsArray = new float[normals.size()];
     for (int i = 0; i < normals.size(); i++) {
@@ -324,15 +308,8 @@ public class Chunk {
 
     geo.setMaterial(mat);
     geo.setLocalTranslation(location.x, location.y, location.z);
-    //    geo.setLocalTranslation(
-    //        location.x + size.x / 2f, location.y + size.y / 2f, location.z + size.z / 2f);
 
-    //    return geo;
-
-    Node node = new Node();
-    node.attachChild(geo);
-    node.attachChild(createDebugBox(assetManager));
-    return node;
+    return geo;
   }
 
   private Spatial createDebugBox(@NonNull AssetManager assetManager) {
@@ -344,7 +321,7 @@ public class Chunk {
     geo.setQueueBucket(RenderQueue.Bucket.Transparent);
     geo.setMaterial(mat);
     //    geo.setLocalTranslation(box.xExtent, box.yExtent, box.zExtent);
-    geo.setLocalTranslation(box.xExtent + 0, box.yExtent + 12, box.zExtent + 2);
+    geo.setLocalTranslation(box.xExtent + 6, box.yExtent + 10, box.zExtent + 2);
     return geo;
   }
 

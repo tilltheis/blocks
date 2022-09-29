@@ -53,13 +53,9 @@ public class App extends SimpleApplication {
   public void simpleInitApp() {
     flyCam.setMoveSpeed(50);
     cam.setFrustumFar(2048); // default is 1000
-    cam.setLocation(new Vector3f(CHUNK_WIDTH / 2, CHUNK_HEIGHT / 2, CHUNK_DEPTH + 30));
+    cam.setLocation(new Vector3f(CHUNK_WIDTH / 2, CHUNK_HEIGHT + 15, -30));
     cam.lookAt(
         new Vector3f(CHUNK_WIDTH / 2, CHUNK_HEIGHT / 2, CHUNK_DEPTH / 2), new Vector3f(0, 1, 0));
-
-    // debug
-    //    cam.setLocation(new Vector3f(31.39552f, 8.270163f, 50.523163f));
-    //    cam.setRotation(new Quaternion(-6.94444E-4f, 0.98742545f, -0.0043393457f, -0.1580244f));
 
     initNoise();
     initInputListeners();
