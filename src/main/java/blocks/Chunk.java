@@ -51,8 +51,12 @@ public class Chunk {
       @NonNull AssetManager assetManager) {
     if (size.x < 1 || size.y < 1 || size.z < 1)
       throw new IllegalArgumentException("all size values must be > 0 but got " + size);
+    if (blocks.length != size.x || blocks[0].length != size.y || blocks[0][0].length != size.z)
+      throw new IllegalArgumentException(
+          "blocks size must match chunk size for chunk at location " + location);
 
     this.location = location;
+
     this.size = size;
     this.blocks = blocks;
 
