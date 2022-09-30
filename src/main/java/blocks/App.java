@@ -69,12 +69,8 @@ public class App extends SimpleApplication {
 
     chunkGrid =
         new ChunkGrid(
-            CHUNK_WIDTH,
-            CHUNK_HEIGHT,
-            CHUNK_DEPTH,
-            GRID_WIDTH,
-            GRID_HEIGHT,
-            GRID_DEPTH,
+            new Vec3i(GRID_WIDTH, GRID_HEIGHT, GRID_DEPTH),
+            new Vec3i(CHUNK_WIDTH, CHUNK_HEIGHT, CHUNK_DEPTH),
             cam.getLocation(),
             assetManager,
             this::createBlocks);
@@ -170,12 +166,8 @@ public class App extends SimpleApplication {
     rootNode.detachAllChildren();
     chunkGrid =
         new ChunkGrid(
-            CHUNK_WIDTH,
-            CHUNK_HEIGHT,
-            CHUNK_DEPTH,
-            GRID_WIDTH,
-            GRID_HEIGHT,
-            GRID_DEPTH,
+            new Vec3i(GRID_WIDTH, GRID_HEIGHT, GRID_DEPTH),
+            new Vec3i(CHUNK_WIDTH, CHUNK_HEIGHT, CHUNK_DEPTH),
             cam.getLocation(),
             assetManager,
             this::createBlocks);

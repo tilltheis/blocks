@@ -10,13 +10,8 @@ import lombok.NonNull;
 import java.util.function.Function;
 
 public class ChunkGrid {
-  private final int chunkWidth;
-  private final int chunkHeight;
-  private final int chunkDepth;
 
-  private final int gridWidth;
-  private final int gridHeight;
-  private final int gridDepth;
+  private final Vec3i gridSize;
   private final Vec3i chunkSize;
   private Chunk[][][] grid;
   private final Function<Vec3i, Block[][][]> createChunkBlocks;
@@ -29,22 +24,13 @@ public class ChunkGrid {
   @Getter private final Node node;
 
   public ChunkGrid(
-      int chunkWidth,
-      int chunkHeight,
-      int chunkDepth,
-      int gridWidth,
-      int gridHeight,
-      int gridDepth,
+      @NonNull Vec3i gridSize,
+      @NonNull Vec3i chunkSize,
       @NonNull Vector3f centerWorldLocation,
       @NonNull AssetManager assetManager,
       @NonNull Function<Vec3i, Block[][][]> createChunkBlocks) {
-    this.chunkWidth = chunkWidth;
-    this.chunkHeight = chunkHeight;
-    this.chunkDepth = chunkDepth;
-    this.chunkSize = new Vec3i(chunkWidth, chunkHeight, chunkDepth);
-    this.gridWidth = gridWidth;
-    this.gridHeight = gridHeight;
-    this.gridDepth = gridDepth;
+    this.gridSize = gridSize;
+    this.chunkSize = chunkSize;
     this.createChunkBlocks = createChunkBlocks;
     this.centerWorldLocation = centerWorldLocation;
     this.assetManager = assetManager;
@@ -56,15 +42,15 @@ public class ChunkGrid {
   }
 
   private void initGrid() {
-    grid = new Chunk[gridWidth][gridHeight][gridDepth];
+    grid = new Chunk[gridSize.x][gridSize.y][gridSize.z];
     gridOffsetX = 0;
     gridOffsetZ = 0;
 
     Vec3i lowerLeftLocation = calculateLowerLeftGridLocation(centerWorldLocation);
 
-    for (int x = 0; x < gridWidth; x++) {
-      for (int y = 0; y < gridHeight; y++) {
-        for (int z = 0; z < gridDepth; z++) {
+    for (int x = 0; x < gridSize.x; x++) {
+      for (int y = 0; y < gridSize.y; y++) {
+        for (int z = 0; z < gridSize.z; z++) {
           Vec3i location = lowerLeftLocation.add(x, y, z);
           Chunk chunk =
               new Chunk(location, chunkSize, createChunkBlocks.apply(location), assetManager);
@@ -78,14 +64,14 @@ public class ChunkGrid {
   private Vec3i calculateCenterGridLocation(Vector3f camLocation) {
     // round because both (int)-0.9f and (int)+0.9f result in 0, effectively spanning 2 ints
     return new Vec3i(
-        Math.round(camLocation.x / chunkWidth), 0, Math.round((camLocation.z / chunkDepth)));
+        Math.round(camLocation.x / chunkSize.x), 0, Math.round((camLocation.z / chunkSize.z)));
   }
 
   private Vec3i calculateLowerLeftGridLocation(Vector3f camLocation) {
     return new Vec3i(
-        Math.round(camLocation.x / chunkWidth - gridWidth / 2f),
+        Math.round(camLocation.x / chunkSize.x - gridSize.x / 2f),
         0,
-        Math.round(camLocation.z / chunkDepth - gridDepth / 2f));
+        Math.round(camLocation.z / chunkSize.z - gridSize.z / 2f));
   }
 
   public void centerAroundWorldLocation(Vector3f newCenterWorldLocation) {
@@ -112,26 +98,27 @@ public class ChunkGrid {
   private void stepTowardsNewCenterGridLocationX(
       Vec3i newPlayerGridLocation, Vec3i newLowerLeftLocation, Vec3i oldLowerLeftLocation) {
     boolean isPlus = newPlayerGridLocation.x > centerGridLocation.x;
-    int gridX = isPlus ? gridOffsetX : (gridOffsetX + gridWidth - 1) % gridWidth;
-    int locationX = isPlus ? newLowerLeftLocation.x + gridWidth - 1 : newLowerLeftLocation.x;
+    int gridX = isPlus ? gridOffsetX : (gridOffsetX + gridSize.x - 1) % gridSize.x;
+    int locationX = isPlus ? newLowerLeftLocation.x + gridSize.x - 1 : newLowerLeftLocation.x;
 
-    for (int y = 0; y < gridHeight; y++) {
-      for (int z = 0; z < gridDepth; z++) {
-        int gridZ = (gridOffsetZ + z) % gridDepth;
+    for (int y = 0; y < gridSize.y; y++) {
+      for (int z = 0; z < gridSize.z; z++) {
+        int gridZ = (gridOffsetZ + z) % gridSize.z;
 
-        node.detachChild(grid[gridX][y][gridZ].getNode());
+        int nodeIndex = gridX * gridSize.y * gridSize.z + y * gridSize.z + gridZ;
+        node.detachChildAt(nodeIndex);
 
         Vec3i location = new Vec3i(locationX, y, oldLowerLeftLocation.z + z);
 
         Chunk chunk =
             new Chunk(location, chunkSize, createChunkBlocks.apply(location), assetManager);
         grid[gridX][y][gridZ] = chunk;
-        node.attachChild(chunk.getNode());
+        node.attachChildAt(chunk.getNode(), nodeIndex);
       }
     }
 
-    int gridOffsetDelta = isPlus ? 1 : gridWidth - 1;
-    gridOffsetX = (gridOffsetX + gridOffsetDelta) % gridWidth;
+    int gridOffsetDelta = isPlus ? 1 : gridSize.x - 1;
+    gridOffsetX = (gridOffsetX + gridOffsetDelta) % gridSize.x;
 
     centerGridLocation.x += isPlus ? 1 : -1;
 
@@ -142,25 +129,26 @@ public class ChunkGrid {
   private void stepTowardsNewCenterGridLocationZ(
       Vec3i newPlayerGridLocation, Vec3i newLowerLeftLocation, Vec3i oldLowerLeftLocation) {
     boolean isPlus = newPlayerGridLocation.z > centerGridLocation.z;
-    int gridZ = isPlus ? gridOffsetZ : (gridOffsetZ + gridDepth - 1) % gridDepth;
-    int locationZ = isPlus ? newLowerLeftLocation.z + gridDepth - 1 : newLowerLeftLocation.z;
+    int gridZ = isPlus ? gridOffsetZ : (gridOffsetZ + gridSize.z - 1) % gridSize.z;
+    int locationZ = isPlus ? newLowerLeftLocation.z + gridSize.z - 1 : newLowerLeftLocation.z;
 
-    for (int x = 0; x < gridWidth; x++) {
-      int gridX = (gridOffsetX + x) % gridWidth;
+    for (int x = 0; x < gridSize.x; x++) {
+      int gridX = (gridOffsetX + x) % gridSize.x;
 
-      for (int y = 0; y < gridHeight; y++) {
-        node.detachChild(grid[gridX][y][gridZ].getNode());
+      for (int y = 0; y < gridSize.y; y++) {
+        int nodeIndex = gridX * gridSize.y * gridSize.z + y * gridSize.z + gridZ;
+        node.detachChildAt(nodeIndex);
 
         Vec3i location = new Vec3i(oldLowerLeftLocation.x + x, y, locationZ);
         Chunk chunk =
             new Chunk(location, chunkSize, createChunkBlocks.apply(location), assetManager);
         grid[gridX][y][gridZ] = chunk;
-        node.attachChild(chunk.getNode());
+        node.attachChildAt(chunk.getNode(), nodeIndex);
       }
     }
 
-    int gridOffsetDelta = isPlus ? 1 : gridDepth - 1;
-    gridOffsetZ = (gridOffsetZ + gridOffsetDelta) % gridDepth;
+    int gridOffsetDelta = isPlus ? 1 : gridSize.z - 1;
+    gridOffsetZ = (gridOffsetZ + gridOffsetDelta) % gridSize.z;
 
     centerGridLocation.z += isPlus ? 1 : -1;
   }
