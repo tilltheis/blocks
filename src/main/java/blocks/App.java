@@ -34,23 +34,17 @@ public class App extends SimpleApplication {
   private static final int CHUNK_HEIGHT = 32;
   private static final int CHUNK_DEPTH = 32;
 
-  private static final int GRID_DIMENSION = 8;
+  private static final int GRID_WIDTH = 8;
   private static final int GRID_HEIGHT = 1;
+  private static final int GRID_DEPTH = 8;
 
   private static final int WORLD_HEIGHT = GRID_HEIGHT * CHUNK_HEIGHT;
-  private static final Vec3i CHUNK_SIZE = new Vec3i(CHUNK_WIDTH, CHUNK_HEIGHT, CHUNK_DEPTH);
 
   Noise heightNoise;
 
-  Chunk[][][] grid;
-
-  int gridOffsetX;
-  int gridOffsetZ;
+  ChunkGrid chunkGrid;
 
   boolean isShiftKeyPressed = false;
-
-  private Vec3i playerGridLocation;
-  private Vector3f camLocation;
 
   private void initNoise() {
     long seed = 100;
@@ -62,23 +56,29 @@ public class App extends SimpleApplication {
     flyCam.setMoveSpeed(250);
     cam.setFrustumFar(2048); // default is 1000
     cam.setLocation(
-        new Vector3f(GRID_DIMENSION * CHUNK_WIDTH / 2f, WORLD_HEIGHT * 1.5f, CHUNK_DEPTH * -3));
+        new Vector3f(GRID_WIDTH * CHUNK_WIDTH / 2f, WORLD_HEIGHT * 1.5f, CHUNK_DEPTH * -3));
     cam.lookAt(
         new Vector3f(
-            GRID_DIMENSION * CHUNK_WIDTH / 2f,
-            WORLD_HEIGHT / 2f,
-            GRID_DIMENSION * CHUNK_DEPTH / 2f),
+            GRID_WIDTH * CHUNK_WIDTH / 2f, WORLD_HEIGHT / 2f, GRID_DEPTH * CHUNK_DEPTH / 2f),
         new Vector3f(0, GRID_HEIGHT / 2f, 0));
-
-    camLocation = cam.getLocation().clone();
-    playerGridLocation = calculatePlayerGridLocation(camLocation);
 
     initNoise();
     initInputListeners();
 
     createCrosshair();
 
-    initMap();
+    chunkGrid =
+        new ChunkGrid(
+            CHUNK_WIDTH,
+            CHUNK_HEIGHT,
+            CHUNK_DEPTH,
+            GRID_WIDTH,
+            GRID_HEIGHT,
+            GRID_DEPTH,
+            cam.getLocation(),
+            assetManager,
+            this::createBlocks);
+    rootNode.attachChild(chunkGrid.getNode());
 
     rootNode.addLight(new AmbientLight(new ColorRGBA(0.2f, 0.2f, 0.2f, 1f)));
     rootNode.addLight(
@@ -168,7 +168,18 @@ public class App extends SimpleApplication {
     initNoise();
 
     rootNode.detachAllChildren();
-    initMap();
+    chunkGrid =
+        new ChunkGrid(
+            CHUNK_WIDTH,
+            CHUNK_HEIGHT,
+            CHUNK_DEPTH,
+            GRID_WIDTH,
+            GRID_HEIGHT,
+            GRID_DEPTH,
+            cam.getLocation(),
+            assetManager,
+            this::createBlocks);
+    rootNode.attachChild(chunkGrid.getNode());
   }
 
   private void createCrosshair() {
@@ -181,32 +192,6 @@ public class App extends SimpleApplication {
         settings.getHeight() / 2f + crosshair.getLineHeight() / 2,
         0);
     guiNode.attachChild(crosshair);
-  }
-
-  private void initMap() {
-    grid = new Chunk[GRID_DIMENSION][GRID_HEIGHT][GRID_DIMENSION];
-    gridOffsetX = 0;
-    gridOffsetZ = 0;
-
-    Vec3i lowerLeftLocation = calculateLowerLeftGridLocation(camLocation);
-
-    for (int x = 0; x < GRID_DIMENSION; x++) {
-      for (int y = 0; y < GRID_HEIGHT; y++) {
-        for (int z = 0; z < GRID_DIMENSION; z++) {
-          Vec3i location = lowerLeftLocation.add(x, y, z);
-          Chunk chunk = new Chunk(location, CHUNK_SIZE, createBlocks(location), assetManager);
-          grid[x][y][z] = chunk;
-          rootNode.attachChild(chunk.getNode());
-        }
-      }
-    }
-  }
-
-  private Vec3i calculateLowerLeftGridLocation(Vector3f camLocation) {
-    return new Vec3i(
-        Math.round(camLocation.x / CHUNK_WIDTH - GRID_DIMENSION / 2f),
-        0,
-        Math.round(camLocation.z / CHUNK_DEPTH - GRID_DIMENSION / 2f));
   }
 
   private static final Block dirtBlock = new Block(BlockType.DIRT);
@@ -237,73 +222,6 @@ public class App extends SimpleApplication {
   @Override
   public void simpleUpdate(float tpf) {
     super.simpleUpdate(tpf);
-
-    Vector3f newCamLocation = cam.getLocation().clone();
-    Vec3i newPlayerGridLocation = calculatePlayerGridLocation(newCamLocation);
-    Vec3i newLowerLeftLocation = calculateLowerLeftGridLocation(newCamLocation);
-    Vec3i oldLowerLeftLocation = calculateLowerLeftGridLocation(camLocation);
-    camLocation = newCamLocation;
-
-    if (!newPlayerGridLocation.equals(playerGridLocation)) {
-      while (newPlayerGridLocation.x != playerGridLocation.x) {
-        boolean isPlus = newPlayerGridLocation.x > playerGridLocation.x;
-        int gridX = isPlus ? gridOffsetX : (gridOffsetX + GRID_DIMENSION - 1) % GRID_DIMENSION;
-        int locationX =
-            isPlus ? newLowerLeftLocation.x + GRID_DIMENSION - 1 : newLowerLeftLocation.x;
-
-        for (int y = 0; y < GRID_HEIGHT; y++) {
-          for (int z = 0; z < GRID_DIMENSION; z++) {
-            int gridZ = (gridOffsetZ + z) % GRID_DIMENSION;
-
-            rootNode.detachChild(grid[gridX][y][gridZ].getNode());
-
-            Vec3i location = new Vec3i(locationX, y, oldLowerLeftLocation.z + z);
-
-            Chunk chunk = new Chunk(location, CHUNK_SIZE, createBlocks(location), assetManager);
-            grid[gridX][y][gridZ] = chunk;
-            rootNode.attachChild(chunk.getNode());
-          }
-        }
-
-        int gridOffsetDelta = isPlus ? 1 : GRID_DIMENSION - 1;
-        gridOffsetX = (gridOffsetX + gridOffsetDelta) % GRID_DIMENSION;
-
-        playerGridLocation.x += isPlus ? 1 : -1;
-
-        newLowerLeftLocation.x += isPlus ? 1 : -1;
-        oldLowerLeftLocation.x += isPlus ? 1 : -1;
-      }
-
-      while (newPlayerGridLocation.z != playerGridLocation.z) {
-        boolean isPlus = newPlayerGridLocation.z > playerGridLocation.z;
-        int gridZ = isPlus ? gridOffsetZ : (gridOffsetZ + GRID_DIMENSION - 1) % GRID_DIMENSION;
-        int locationZ =
-            isPlus ? newLowerLeftLocation.z + GRID_DIMENSION - 1 : newLowerLeftLocation.z;
-
-        for (int x = 0; x < GRID_DIMENSION; x++) {
-          int gridX = (gridOffsetX + x) % GRID_DIMENSION;
-
-          for (int y = 0; y < GRID_HEIGHT; y++) {
-            rootNode.detachChild(grid[gridX][y][gridZ].getNode());
-
-            Vec3i location = new Vec3i(oldLowerLeftLocation.x + x, y, locationZ);
-            Chunk chunk = new Chunk(location, CHUNK_SIZE, createBlocks(location), assetManager);
-            grid[gridX][y][gridZ] = chunk;
-            rootNode.attachChild(chunk.getNode());
-          }
-        }
-
-        int gridOffsetDelta = isPlus ? 1 : GRID_DIMENSION - 1;
-        gridOffsetZ = (gridOffsetZ + gridOffsetDelta) % GRID_DIMENSION;
-
-        playerGridLocation.z += isPlus ? 1 : -1;
-      }
-    }
-  }
-
-  private Vec3i calculatePlayerGridLocation(Vector3f camLocation) {
-    // round because both (int)-0.9f and (int)+0.9f result in 0, effectively spanning 2 ints
-    return new Vec3i(
-        Math.round(camLocation.x / CHUNK_WIDTH), 0, Math.round((camLocation.z / CHUNK_DEPTH)));
+    chunkGrid.centerAroundWorldLocation(cam.getLocation());
   }
 }
