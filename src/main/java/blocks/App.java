@@ -15,6 +15,8 @@ import com.jme3.system.AppSettings;
 import com.simsilica.mathd.Vec3i;
 
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.IntStream;
 
 public class App extends SimpleApplication {
@@ -36,9 +38,9 @@ public class App extends SimpleApplication {
   private static final int CHUNK_HEIGHT = 32;
   private static final int CHUNK_DEPTH = 32;
 
-  private static final int GRID_WIDTH = 15;
+  private static final int GRID_WIDTH = 25;
   private static final int GRID_HEIGHT = 8;
-  private static final int GRID_DEPTH = 15;
+  private static final int GRID_DEPTH = 25;
 
   private static final int WORLD_HEIGHT = GRID_HEIGHT * CHUNK_HEIGHT;
 
@@ -46,11 +48,19 @@ public class App extends SimpleApplication {
 
   ChunkGrid chunkGrid;
 
+  private final ExecutorService chunkGenerationExecutorService = Executors.newFixedThreadPool(4);
+
   boolean isShiftKeyPressed = false;
 
   private void initNoise() {
     long seed = 100;
     heightNoise = new Noise(10, 0, 2000, 2, 0, 0, new Random(seed));
+  }
+
+  @Override
+  public void stop() {
+    chunkGenerationExecutorService.shutdown();
+    super.stop();
   }
 
   @Override
@@ -174,6 +184,7 @@ public class App extends SimpleApplication {
             new Vec3i(GRID_WIDTH, GRID_HEIGHT, GRID_DEPTH),
             new Vec3i(CHUNK_WIDTH, CHUNK_HEIGHT, CHUNK_DEPTH),
             cam.getLocation(),
+            chunkGenerationExecutorService,
             assetManager,
             this::createBlocks);
     rootNode.attachChild(chunkGrid.getNode());
