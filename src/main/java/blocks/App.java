@@ -36,9 +36,9 @@ public class App extends SimpleApplication {
   private static final int CHUNK_HEIGHT = 32;
   private static final int CHUNK_DEPTH = 32;
 
-  private static final int GRID_WIDTH = 10;
-  private static final int GRID_HEIGHT = 3;
-  private static final int GRID_DEPTH = 10;
+  private static final int GRID_WIDTH = 15;
+  private static final int GRID_HEIGHT = 8;
+  private static final int GRID_DEPTH = 15;
 
   private static final int WORLD_HEIGHT = GRID_HEIGHT * CHUNK_HEIGHT;
 
@@ -223,5 +223,6 @@ public class App extends SimpleApplication {
   public void simpleUpdate(float tpf) {
     super.simpleUpdate(tpf);
     chunkGrid.centerAroundWorldLocation(cam.getLocation());
+    chunkGrid.update();
   }
 }

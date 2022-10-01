@@ -3,17 +3,22 @@ package blocks;
 import com.jme3.asset.AssetManager;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Node;
+import com.jme3.scene.Spatial;
 import com.simsilica.mathd.Vec3i;
 import lombok.Getter;
 import lombok.NonNull;
 
+import java.lang.reflect.Array;
+import java.util.AbstractMap;
+import java.util.Map;
+import java.util.concurrent.*;
 import java.util.function.Function;
 
 public class ChunkGrid {
 
   private final Vec3i gridSize;
   private final Vec3i chunkSize;
-  private Chunk[][][] grid;
+  private Future<Chunk>[][][] grid;
   private final Function<Vec3i, Block[][][]> createChunkBlocks;
   private final AssetManager assetManager;
 
@@ -22,6 +27,10 @@ public class ChunkGrid {
   private final Vec3i centerGridLocation;
   private Vector3f centerWorldLocation;
   @Getter private final Node node;
+
+  private final ExecutorService executor = Executors.newFixedThreadPool(4);
+  private final ConcurrentLinkedQueue<Map.Entry<Integer, Chunk>> updateList =
+      new ConcurrentLinkedQueue<>();
 
   public ChunkGrid(
       @NonNull Vec3i gridSize,
@@ -32,8 +41,10 @@ public class ChunkGrid {
     this.gridSize = gridSize;
     this.chunkSize = chunkSize;
     this.createChunkBlocks = createChunkBlocks;
-    this.centerWorldLocation = centerWorldLocation;
+    this.centerWorldLocation = centerWorldLocation.clone();
     this.assetManager = assetManager;
+
+    this.centerWorldLocation.set(1, 0f);
 
     centerGridLocation = calculateCenterGridLocation(centerWorldLocation);
     node = new Node();
@@ -42,7 +53,8 @@ public class ChunkGrid {
   }
 
   private void initGrid() {
-    grid = new Chunk[gridSize.x][gridSize.y][gridSize.z];
+    grid =
+        (Future<Chunk>[][][]) Array.newInstance(Future.class, gridSize.x, gridSize.y, gridSize.z);
     gridOffsetX = 0;
     gridOffsetZ = 0;
 
@@ -54,7 +66,7 @@ public class ChunkGrid {
           Vec3i location = lowerLeftLocation.add(x, y, z);
           Chunk chunk =
               new Chunk(location, chunkSize, createChunkBlocks.apply(location), assetManager);
-          grid[x][y][z] = chunk;
+          grid[x][y][z] = CompletableFuture.completedFuture(chunk);
           node.attachChild(chunk.getNode());
         }
       }
@@ -78,7 +90,8 @@ public class ChunkGrid {
     Vec3i newCenterGridLocation = calculateCenterGridLocation(newCenterWorldLocation);
     Vec3i newLowerLeftLocation = calculateLowerLeftGridLocation(newCenterWorldLocation);
     Vec3i oldLowerLeftLocation = calculateLowerLeftGridLocation(centerWorldLocation);
-    centerWorldLocation = newCenterWorldLocation;
+    centerWorldLocation = newCenterWorldLocation.clone();
+    centerWorldLocation.set(1, 0f);
 
     if (!newCenterGridLocation.equals(centerGridLocation)) {
       // TODO the stepping functions don't properly work if multiple steps are required
@@ -95,6 +108,39 @@ public class ChunkGrid {
     }
   }
 
+  // TODO: stick to original grid plan but increase its size to ~10k nodes => more efficient w/ same
+  //   result of seeing far
+  public void update() {
+    Vector3f chunkGenerationDistance = gridSize.toVector3f().mult(chunkSize.toVector3f());
+    int maxChunkGenerationDistance =
+        (int)
+            Math.max(
+                Math.max(Math.max(0, chunkGenerationDistance.x), chunkGenerationDistance.y),
+                chunkGenerationDistance.z);
+    int squaredMaxChunkGenerationDistance = maxChunkGenerationDistance * maxChunkGenerationDistance;
+
+    while (!updateList.isEmpty()) {
+      Map.Entry<Integer, Chunk> nodeIndexWithChunk = updateList.remove();
+
+      if (node.getChildren().size() >= 10000) {
+        int index = 0;
+        // only delete if child is more than the chunk generation distance away
+        for (Spatial child : node.getChildren()) {
+          float distanceSquared = child.getWorldTranslation().distanceSquared(centerWorldLocation);
+          if (distanceSquared > squaredMaxChunkGenerationDistance) {
+            break;
+          }
+          index += 1;
+        }
+        if (index < node.getChildren().size()) {
+          node.detachChildAt(index);
+        }
+      }
+
+      node.attachChild(nodeIndexWithChunk.getValue().getNode());
+    }
+  }
+
   private void stepTowardsNewCenterGridLocationX(
       Vec3i newPlayerGridLocation, Vec3i newLowerLeftLocation, Vec3i oldLowerLeftLocation) {
     boolean isPlus = newPlayerGridLocation.x > centerGridLocation.x;
@@ -106,14 +152,21 @@ public class ChunkGrid {
         int gridZ = (gridOffsetZ + z) % gridSize.z;
 
         int nodeIndex = gridX * gridSize.y * gridSize.z + y * gridSize.z + gridZ;
-        node.detachChildAt(nodeIndex);
+        //        node.detachChildAt(nodeIndex);
+        //        node.attachChildAt(new Node(), nodeIndex);
 
-        Vec3i location = new Vec3i(locationX, y, oldLowerLeftLocation.z + z);
-
-        Chunk chunk =
-            new Chunk(location, chunkSize, createChunkBlocks.apply(location), assetManager);
-        grid[gridX][y][gridZ] = chunk;
-        node.attachChildAt(chunk.getNode(), nodeIndex);
+        int finalY = y;
+        int finalZ = z;
+        grid[gridX][y][gridZ] =
+            executor.submit(
+                () -> {
+                  Vec3i location = new Vec3i(locationX, finalY, oldLowerLeftLocation.z + finalZ);
+                  Chunk chunk =
+                      new Chunk(
+                          location, chunkSize, createChunkBlocks.apply(location), assetManager);
+                  updateList.add(new AbstractMap.SimpleEntry<>(nodeIndex, chunk));
+                  return chunk;
+                });
       }
     }
 
@@ -137,13 +190,21 @@ public class ChunkGrid {
 
       for (int y = 0; y < gridSize.y; y++) {
         int nodeIndex = gridX * gridSize.y * gridSize.z + y * gridSize.z + gridZ;
-        node.detachChildAt(nodeIndex);
+        //        node.detachChildAt(nodeIndex);
+        //        node.attachChildAt(new Node(), nodeIndex);
 
-        Vec3i location = new Vec3i(oldLowerLeftLocation.x + x, y, locationZ);
-        Chunk chunk =
-            new Chunk(location, chunkSize, createChunkBlocks.apply(location), assetManager);
-        grid[gridX][y][gridZ] = chunk;
-        node.attachChildAt(chunk.getNode(), nodeIndex);
+        int finalX = x;
+        int finalY = y;
+        grid[gridX][y][gridZ] =
+            executor.submit(
+                () -> {
+                  Vec3i location = new Vec3i(oldLowerLeftLocation.x + finalX, finalY, locationZ);
+                  Chunk chunk =
+                      new Chunk(
+                          location, chunkSize, createChunkBlocks.apply(location), assetManager);
+                  updateList.add(new AbstractMap.SimpleEntry<>(nodeIndex, chunk));
+                  return chunk;
+                });
       }
     }
 
