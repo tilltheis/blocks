@@ -9,6 +9,7 @@ import com.jme3.light.AmbientLight;
 import com.jme3.light.DirectionalLight;
 import com.jme3.light.Light;
 import com.jme3.math.ColorRGBA;
+import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.system.AppSettings;
 import com.simsilica.mathd.Vec3i;
@@ -34,9 +35,9 @@ public class App extends SimpleApplication {
   private static final int CHUNK_HEIGHT = 32;
   private static final int CHUNK_DEPTH = 32;
 
-  private static final int GRID_WIDTH = 8;
-  private static final int GRID_HEIGHT = 1;
-  private static final int GRID_DEPTH = 8;
+  private static final int GRID_WIDTH = 10;
+  private static final int GRID_HEIGHT = 3;
+  private static final int GRID_DEPTH = 10;
 
   private static final int WORLD_HEIGHT = GRID_HEIGHT * CHUNK_HEIGHT;
 
@@ -67,14 +68,7 @@ public class App extends SimpleApplication {
 
     createCrosshair();
 
-    chunkGrid =
-        new ChunkGrid(
-            new Vec3i(GRID_WIDTH, GRID_HEIGHT, GRID_DEPTH),
-            new Vec3i(CHUNK_WIDTH, CHUNK_HEIGHT, CHUNK_DEPTH),
-            cam.getLocation(),
-            assetManager,
-            this::createBlocks);
-    rootNode.attachChild(chunkGrid.getNode());
+    initGrid();
 
     rootNode.addLight(new AmbientLight(new ColorRGBA(0.2f, 0.2f, 0.2f, 1f)));
     rootNode.addLight(
@@ -127,8 +121,14 @@ public class App extends SimpleApplication {
 
     switch (name) {
       case "resetGame" -> {
+        Vector3f oldCamLocation = cam.getLocation().clone();
+        Quaternion oldCamRotation = cam.getRotation().clone();
         cleanup();
         simpleInitApp();
+        if (isShiftKeyPressed) {
+          cam.setLocation(oldCamLocation);
+          cam.setRotation(oldCamRotation);
+        }
         System.out.println("resetGame");
       }
 
@@ -164,6 +164,10 @@ public class App extends SimpleApplication {
     initNoise();
 
     rootNode.detachAllChildren();
+    initGrid();
+  }
+
+  private void initGrid() {
     chunkGrid =
         new ChunkGrid(
             new Vec3i(GRID_WIDTH, GRID_HEIGHT, GRID_DEPTH),
