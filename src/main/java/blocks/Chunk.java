@@ -2,10 +2,7 @@ package blocks;
 
 import com.jme3.asset.AssetManager;
 import com.jme3.material.Material;
-import com.jme3.math.FastMath;
-import com.jme3.math.Quaternion;
-import com.jme3.math.Vector2f;
-import com.jme3.math.Vector3f;
+import com.jme3.math.*;
 import com.jme3.scene.*;
 import com.jme3.util.BufferUtils;
 import com.simsilica.mathd.Vec3i;
@@ -268,8 +265,9 @@ public class Chunk {
 
     Material material = new Material(assetManager, "Common/MatDefs/Light/Lighting.j3md");
     material.setBoolean("UseMaterialColors", true);
-    material.setColor("Ambient", block.type.color);
-    material.setColor("Diffuse", block.type.color);
+    ColorRGBA color = block.type().color.mult(block.shade());
+    material.setColor("Ambient", color);
+    material.setColor("Diffuse", color);
 
     geometry.setMaterial(material);
 

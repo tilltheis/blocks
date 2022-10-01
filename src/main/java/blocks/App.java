@@ -15,6 +15,7 @@ import com.jme3.system.AppSettings;
 import com.simsilica.mathd.Vec3i;
 
 import java.util.Random;
+import java.util.stream.IntStream;
 
 public class App extends SimpleApplication {
 
@@ -190,8 +191,11 @@ public class App extends SimpleApplication {
     guiNode.attachChild(crosshair);
   }
 
-  private static final Block dirtBlock = new Block(BlockType.DIRT);
-  private static final Block grassBlock = new Block(BlockType.GRASS);
+  private static final Block dirtBlock = new Block(BlockType.DIRT, 1f);
+  private static final Block[] shadedGrassBlocks =
+      IntStream.rangeClosed(1, 10)
+          .mapToObj(i -> new Block(BlockType.GRASS, 1f / i))
+          .toArray(Block[]::new);
 
   private Block[][][] createBlocks(Vec3i location) {
     Block[][][] blocks = new Block[CHUNK_WIDTH][CHUNK_HEIGHT][CHUNK_DEPTH];
@@ -206,7 +210,7 @@ public class App extends SimpleApplication {
         for (int y = 0; y < CHUNK_HEIGHT && y <= scaledHeight - (location.y * CHUNK_HEIGHT); y++) {
           Block block;
           if (location.y * CHUNK_HEIGHT + y < scaledHeight) block = dirtBlock;
-          else block = grassBlock;
+          else block = shadedGrassBlocks[(int) ((height + 1) / 2 * 10)];
           blocks[x][y][z] = block;
         }
       }
