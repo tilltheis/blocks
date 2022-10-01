@@ -39,7 +39,7 @@ public class App extends SimpleApplication {
   private static final int CHUNK_DEPTH = 32;
 
   private static final int GRID_WIDTH = 25;
-  private static final int GRID_HEIGHT = 8;
+  private static final int GRID_HEIGHT = 5;
   private static final int GRID_DEPTH = 25;
 
   private static final int WORLD_HEIGHT = GRID_HEIGHT * CHUNK_HEIGHT;
@@ -48,7 +48,7 @@ public class App extends SimpleApplication {
 
   ChunkGrid chunkGrid;
 
-  private final ExecutorService chunkGenerationExecutorService = Executors.newFixedThreadPool(4);
+  private ExecutorService chunkGenerationExecutorService;
 
   boolean isShiftKeyPressed = false;
 
@@ -59,7 +59,7 @@ public class App extends SimpleApplication {
 
   @Override
   public void stop() {
-    chunkGenerationExecutorService.shutdown();
+    chunkGenerationExecutorService.shutdownNow();
     super.stop();
   }
 
@@ -79,6 +79,7 @@ public class App extends SimpleApplication {
 
     createCrosshair();
 
+    chunkGenerationExecutorService = Executors.newFixedThreadPool(4);
     initGrid();
 
     rootNode.addLight(new AmbientLight(new ColorRGBA(0.2f, 0.2f, 0.2f, 1f)));
@@ -88,6 +89,8 @@ public class App extends SimpleApplication {
   }
 
   private void cleanup() {
+    chunkGenerationExecutorService.shutdownNow();
+
     rootNode.detachAllChildren();
 
     for (Light light : rootNode.getLocalLightList()) {
@@ -171,11 +174,6 @@ public class App extends SimpleApplication {
         System.out.println("gain = " + heightNoise.gain);
       }
     }
-
-    initNoise();
-
-    rootNode.detachAllChildren();
-    initGrid();
   }
 
   private void initGrid() {
