@@ -9,6 +9,7 @@ import com.jme3.light.AmbientLight;
 import com.jme3.light.DirectionalLight;
 import com.jme3.light.Light;
 import com.jme3.math.ColorRGBA;
+import com.jme3.math.FastMath;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.system.AppSettings;
@@ -44,17 +45,41 @@ public class App extends SimpleApplication {
 
   private static final int WORLD_HEIGHT = GRID_HEIGHT * CHUNK_HEIGHT;
 
-  Noise heightNoise;
-
   ChunkGrid chunkGrid;
 
   private ExecutorService chunkGenerationExecutorService;
 
   boolean isShiftKeyPressed = false;
 
-  private void initNoise() {
+  private float heightNoiseValueAt(int x, int z) {
     long seed = 100;
-    heightNoise = new Noise(10, 0, 2000, 2, 0, 0, new Random(seed));
+
+    Noise mountainNoise = new Noise(4, 0, 1499, 4.1, -4, 0, new Random(seed));
+    Noise flatlandNoise = new Noise(4, 0, 1499, 3.5, -4, 0, new Random(seed));
+
+    float mountainValue = mountainNoise.getValue(x, z);
+    float flatlandValue = flatlandNoise.getValue(x, z);
+
+    float scaledMountainValue = mountainValue * 1;
+    float scaledFlatlandValue = flatlandValue * 0.4f;
+
+    float difference = scaledMountainValue - scaledFlatlandValue;
+
+    float interpolatedValue;
+    if (difference > 0 && difference <= 0.2f) {
+      float mu = difference * 5;
+      interpolatedValue = cosineInterpolation(scaledMountainValue, scaledFlatlandValue, mu);
+    } else {
+      interpolatedValue = Math.max(scaledMountainValue, scaledFlatlandValue);
+    }
+
+    return interpolatedValue;
+  }
+
+  // mu is percentage between x and y, must be in range (0, 1)
+  private static float cosineInterpolation(float x, float y, float mu) {
+    float mu2 = (1 - FastMath.cos(mu * FastMath.PI)) / 2;
+    return y * (1 - mu2) + x * mu2;
   }
 
   @Override
@@ -74,7 +99,6 @@ public class App extends SimpleApplication {
             GRID_WIDTH * CHUNK_WIDTH / 2f, WORLD_HEIGHT / 2f, GRID_DEPTH * CHUNK_DEPTH / 2f),
         new Vector3f(0, GRID_HEIGHT / 2f, 0));
 
-    initNoise();
     initInputListeners();
 
     createCrosshair();
@@ -98,11 +122,7 @@ public class App extends SimpleApplication {
     }
 
     inputManager.deleteMapping("resetGame");
-    inputManager.deleteMapping("changeOctaveCount");
-    inputManager.deleteMapping("changeFrequencyDivisor");
-    inputManager.deleteMapping("changeLacunarity");
-    inputManager.deleteMapping("changeGain");
-    inputManager.removeListener((ActionListener) this::mapActionListener);
+    inputManager.removeListener((ActionListener) this::resetGameListener);
 
     inputManager.deleteMapping("recordShiftKeyPress");
     inputManager.removeListener((ActionListener) this::shiftActionListener);
@@ -110,17 +130,7 @@ public class App extends SimpleApplication {
 
   private void initInputListeners() {
     inputManager.addMapping("resetGame", new KeyTrigger(KeyInput.KEY_R));
-    inputManager.addMapping("changeOctaveCount", new KeyTrigger(KeyInput.KEY_O));
-    inputManager.addMapping("changeFrequencyDivisor", new KeyTrigger(KeyInput.KEY_F));
-    inputManager.addMapping("changeLacunarity", new KeyTrigger(KeyInput.KEY_L));
-    inputManager.addMapping("changeGain", new KeyTrigger(KeyInput.KEY_G));
-    inputManager.addListener(
-        (ActionListener) this::mapActionListener,
-        "resetGame",
-        "changeOctaveCount",
-        "changeFrequencyDivisor",
-        "changeLacunarity",
-        "changeGain");
+    inputManager.addListener((ActionListener) this::resetGameListener, "resetGame");
 
     inputManager.addMapping("recordShiftKeyPress", new KeyTrigger(KeyInput.KEY_LSHIFT));
     inputManager.addListener((ActionListener) this::shiftActionListener, "recordShiftKeyPress");
@@ -130,50 +140,21 @@ public class App extends SimpleApplication {
     isShiftKeyPressed = keyPressed;
   }
 
-  private void mapActionListener(String name, boolean keyPressed, float tpf) {
+  private void resetGameListener(String name, boolean keyPressed, float tpf) {
     if (keyPressed) return;
 
-    switch (name) {
-      case "resetGame" -> {
-        Vector3f oldCamLocation = cam.getLocation().clone();
-        Quaternion oldCamRotation = cam.getRotation().clone();
-        cleanup();
-        simpleInitApp();
-        if (isShiftKeyPressed) {
-          cam.setLocation(oldCamLocation);
-          cam.setRotation(oldCamRotation);
-        }
-        System.out.println("resetGame");
-      }
+    Vector3f oldCamLocation = cam.getLocation().clone();
+    Quaternion oldCamRotation = cam.getRotation().clone();
 
-      case "changeOctaveCount" -> {
-        heightNoise.octaves =
-            isShiftKeyPressed ? Math.max(1, heightNoise.octaves - 1) : heightNoise.octaves + 1;
-        System.out.println("octaves = " + heightNoise.octaves);
-      }
+    cleanup();
+    simpleInitApp();
 
-      case "changeFrequencyDivisor" -> {
-        heightNoise.frequencyDivisor =
-            isShiftKeyPressed
-                ? Math.max(1, heightNoise.frequencyDivisor - 10)
-                : heightNoise.frequencyDivisor + 10;
-        System.out.println("frequencyMultiplier = " + heightNoise.frequencyDivisor);
-      }
-
-      case "changeLacunarity" -> {
-        heightNoise.lacunarity =
-            isShiftKeyPressed
-                ? Math.max(0.1, heightNoise.lacunarity - 0.1)
-                : heightNoise.lacunarity + 0.1;
-        System.out.println("lacunarity = " + heightNoise.lacunarity);
-      }
-
-      case "changeGain" -> {
-        heightNoise.gain =
-            isShiftKeyPressed ? Math.max(0, heightNoise.gain - 0.01) : heightNoise.gain + 0.01;
-        System.out.println("gain = " + heightNoise.gain);
-      }
+    if (isShiftKeyPressed) {
+      cam.setLocation(oldCamLocation);
+      cam.setRotation(oldCamRotation);
     }
+
+    System.out.println("resetGame");
   }
 
   private void initGrid() {
@@ -212,8 +193,7 @@ public class App extends SimpleApplication {
     for (int x = 0; x < CHUNK_WIDTH; x++) {
       for (int z = 0; z < CHUNK_DEPTH; z++) {
         float height =
-            heightNoise.getValue(
-                (location.x * CHUNK_WIDTH + x) * 2 - 100, (location.z * CHUNK_DEPTH + z) * 2);
+            heightNoiseValueAt(location.x * CHUNK_WIDTH + x, location.z * CHUNK_DEPTH + z);
         int scaledHeight = (int) ((height + 1) / 2 * WORLD_HEIGHT);
 
         for (int y = 0; y < CHUNK_HEIGHT && y <= scaledHeight - (location.y * CHUNK_HEIGHT); y++) {
