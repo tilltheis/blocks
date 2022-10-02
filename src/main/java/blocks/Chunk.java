@@ -265,7 +265,7 @@ public class Chunk {
 
     Material material = new Material(assetManager, "Common/MatDefs/Light/Lighting.j3md");
     material.setBoolean("UseMaterialColors", true);
-    ColorRGBA color = block.type().color.mult(block.shade());
+    ColorRGBA color = block.type().color.mult(block.brightness());
     material.setColor("Ambient", color);
     material.setColor("Diffuse", color);
 

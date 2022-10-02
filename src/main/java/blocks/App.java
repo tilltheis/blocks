@@ -39,9 +39,9 @@ public class App extends SimpleApplication {
   private static final int CHUNK_HEIGHT = 32;
   private static final int CHUNK_DEPTH = 32;
 
-  private static final int GRID_WIDTH = 25;
+  private static final int GRID_WIDTH = 32;
   private static final int GRID_HEIGHT = 5;
-  private static final int GRID_DEPTH = 25;
+  private static final int GRID_DEPTH = 32;
 
   private static final int WORLD_HEIGHT = GRID_HEIGHT * CHUNK_HEIGHT;
 
@@ -51,29 +51,52 @@ public class App extends SimpleApplication {
 
   boolean isShiftKeyPressed = false;
 
-  private float heightNoiseValueAt(int x, int z) {
+  private enum Terrain {
+    MOUNTAIN,
+    FLATLAND,
+    HILL
+  }
+
+  private record TerrainHeight(Terrain terrain, float height) {}
+
+  private TerrainHeight terrainHeightAt(int x, int z) {
     long seed = 100;
 
-    Noise mountainNoise = new Noise(4, 0, 1499, 4.1, -4, 0, new Random(seed));
-    Noise flatlandNoise = new Noise(4, 0, 1499, 3.5, -4, 0, new Random(seed));
+    Noise mountainNoise = new Noise(4, 0, 1500, 4.1, -4, 0, new Random(seed));
+    Noise flatlandNoise = new Noise(4, 0, 1500, 3.5, 0, 0, new Random(seed));
+    Noise hillNoise = new Noise(4, 0, 500, 3.5, 0, 0, new Random(seed));
 
     float mountainValue = mountainNoise.getValue(x, z);
     float flatlandValue = flatlandNoise.getValue(x, z);
+    float hillValue = hillNoise.getValue(x, z);
 
     float scaledMountainValue = mountainValue * 1;
     float scaledFlatlandValue = flatlandValue * 0.4f;
+    float scaledHillValue = hillValue - 0.5f;
 
-    float difference = scaledMountainValue - scaledFlatlandValue;
+    Terrain terrain = Terrain.FLATLAND;
 
-    float interpolatedValue;
-    if (difference > 0 && difference <= 0.2f) {
-      float mu = difference * 5;
-      interpolatedValue = cosineInterpolation(scaledMountainValue, scaledFlatlandValue, mu);
-    } else {
-      interpolatedValue = Math.max(scaledMountainValue, scaledFlatlandValue);
+    float interpolatedValue = scaledFlatlandValue;
+
+    float mountainDifference = scaledMountainValue - scaledFlatlandValue;
+
+    if (mountainDifference > 0) {
+      if (mountainDifference <= 0.2f) {
+        float mu = mountainDifference * 5;
+        interpolatedValue = cosineInterpolation(scaledMountainValue, scaledFlatlandValue, mu);
+      } else {
+        interpolatedValue = scaledMountainValue;
+      }
+
+      terrain = Terrain.MOUNTAIN;
     }
 
-    return interpolatedValue;
+    if (scaledHillValue > 0) {
+      interpolatedValue += scaledHillValue;
+      terrain = Terrain.HILL;
+    }
+
+    return new TerrainHeight(terrain, interpolatedValue);
   }
 
   // mu is percentage between x and y, must be in range (0, 1)
@@ -182,6 +205,7 @@ public class App extends SimpleApplication {
   }
 
   private static final Block dirtBlock = new Block(BlockType.DIRT, 1f);
+  private static final Block rockBlock = new Block(BlockType.ROCK, 1f);
   private static final Block[] shadedGrassBlocks =
       IntStream.rangeClosed(1, 10)
           .mapToObj(i -> new Block(BlockType.GRASS, 1f / i))
@@ -192,14 +216,23 @@ public class App extends SimpleApplication {
 
     for (int x = 0; x < CHUNK_WIDTH; x++) {
       for (int z = 0; z < CHUNK_DEPTH; z++) {
-        float height =
-            heightNoiseValueAt(location.x * CHUNK_WIDTH + x, location.z * CHUNK_DEPTH + z);
+        TerrainHeight terrainHeight =
+            terrainHeightAt(location.x * CHUNK_WIDTH + x, location.z * CHUNK_DEPTH + z);
+        Terrain terrain = terrainHeight.terrain;
+        float height = terrainHeight.height;
         int scaledHeight = (int) ((height + 1) / 2 * WORLD_HEIGHT);
 
         for (int y = 0; y < CHUNK_HEIGHT && y <= scaledHeight - (location.y * CHUNK_HEIGHT); y++) {
           Block block;
           if (location.y * CHUNK_HEIGHT + y < scaledHeight) block = dirtBlock;
-          else block = shadedGrassBlocks[(int) ((height + 1) / 2 * 10)];
+          else {
+            block =
+                switch (terrain) {
+                  case MOUNTAIN -> rockBlock;
+                  case HILL -> dirtBlock;
+                  case FLATLAND -> shadedGrassBlocks[(int) ((height + 1) / 2 * 10)];
+                };
+          }
           blocks[x][y][z] = block;
         }
       }

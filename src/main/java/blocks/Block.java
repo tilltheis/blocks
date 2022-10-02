@@ -1,3 +1,3 @@
 package blocks;
 
-public record Block(BlockType type, float shade) {}
+public record Block(BlockType type, float brightness) {}
