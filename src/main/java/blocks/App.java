@@ -54,6 +54,7 @@ public class App extends SimpleApplication {
   private enum Terrain {
     MOUNTAIN,
     FLATLAND,
+    OCEAN,
     HILL
   }
 
@@ -65,14 +66,17 @@ public class App extends SimpleApplication {
     Noise mountainNoise = new Noise(4, 0, 1500, 4.1, -4, 0, new Random(seed));
     Noise flatlandNoise = new Noise(4, 0, 1500, 3.5, 0, 0, new Random(seed));
     Noise hillNoise = new Noise(4, 0, 500, 3.5, 0, 0, new Random(seed));
+    Noise oceanNoise = new Noise(4, 0, 1000, 3.5, 0, 0, new Random(seed));
 
     float mountainValue = mountainNoise.getValue(x, z);
     float flatlandValue = flatlandNoise.getValue(x, z);
     float hillValue = hillNoise.getValue(x, z);
+    float oceanValue = oceanNoise.getValue(x, z);
 
     float scaledMountainValue = mountainValue * 1;
     float scaledFlatlandValue = flatlandValue * 0.4f;
     float scaledHillValue = hillValue - 0.5f;
+    float scaledOceanValue = oceanValue * 1;
 
     Terrain terrain = Terrain.FLATLAND;
 
@@ -94,6 +98,14 @@ public class App extends SimpleApplication {
     if (scaledHillValue > 0) {
       interpolatedValue += scaledHillValue;
       terrain = Terrain.HILL;
+    }
+
+    if (scaledOceanValue < -0.2f) {
+      interpolatedValue += (scaledOceanValue + 0.2f);
+    }
+
+    if (interpolatedValue < -0.2f) {
+      terrain = Terrain.OCEAN;
     }
 
     return new TerrainHeight(terrain, interpolatedValue);
@@ -145,7 +157,7 @@ public class App extends SimpleApplication {
     }
 
     inputManager.deleteMapping("resetGame");
-    inputManager.removeListener((ActionListener) this::resetGameListener);
+    inputManager.removeListener((ActionListener) this::debugGameListener);
 
     inputManager.deleteMapping("recordShiftKeyPress");
     inputManager.removeListener((ActionListener) this::shiftActionListener);
@@ -153,7 +165,7 @@ public class App extends SimpleApplication {
 
   private void initInputListeners() {
     inputManager.addMapping("resetGame", new KeyTrigger(KeyInput.KEY_R));
-    inputManager.addListener((ActionListener) this::resetGameListener, "resetGame");
+    inputManager.addListener((ActionListener) this::debugGameListener, "resetGame");
 
     inputManager.addMapping("recordShiftKeyPress", new KeyTrigger(KeyInput.KEY_LSHIFT));
     inputManager.addListener((ActionListener) this::shiftActionListener, "recordShiftKeyPress");
@@ -163,21 +175,25 @@ public class App extends SimpleApplication {
     isShiftKeyPressed = keyPressed;
   }
 
-  private void resetGameListener(String name, boolean keyPressed, float tpf) {
+  private void debugGameListener(String name, boolean keyPressed, float tpf) {
     if (keyPressed) return;
 
-    Vector3f oldCamLocation = cam.getLocation().clone();
-    Quaternion oldCamRotation = cam.getRotation().clone();
+    switch (name) {
+      case "resetGame" -> {
+        Vector3f oldCamLocation = cam.getLocation().clone();
+        Quaternion oldCamRotation = cam.getRotation().clone();
 
-    cleanup();
-    simpleInitApp();
+        cleanup();
+        simpleInitApp();
 
-    if (isShiftKeyPressed) {
-      cam.setLocation(oldCamLocation);
-      cam.setRotation(oldCamRotation);
+        if (isShiftKeyPressed) {
+          cam.setLocation(oldCamLocation);
+          cam.setRotation(oldCamRotation);
+        }
+
+        System.out.println("resetGame");
+      }
     }
-
-    System.out.println("resetGame");
   }
 
   private void initGrid() {
@@ -206,6 +222,7 @@ public class App extends SimpleApplication {
 
   private static final Block dirtBlock = new Block(BlockType.DIRT, 1f);
   private static final Block rockBlock = new Block(BlockType.ROCK, 1f);
+  private static final Block waterBlock = new Block(BlockType.WATER, 1f);
   private static final Block[] shadedGrassBlocks =
       IntStream.rangeClosed(1, 10)
           .mapToObj(i -> new Block(BlockType.GRASS, 1f / i))
@@ -231,6 +248,7 @@ public class App extends SimpleApplication {
                   case MOUNTAIN -> rockBlock;
                   case HILL -> dirtBlock;
                   case FLATLAND -> shadedGrassBlocks[(int) ((height + 1) / 2 * 10)];
+                  case OCEAN -> waterBlock;
                 };
           }
           blocks[x][y][z] = block;
