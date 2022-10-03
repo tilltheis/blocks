@@ -18,6 +18,8 @@ import com.simsilica.mathd.Vec3i;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 public class App extends SimpleApplication {
@@ -39,9 +41,9 @@ public class App extends SimpleApplication {
   private static final int CHUNK_HEIGHT = 32;
   private static final int CHUNK_DEPTH = 32;
 
-  private static final int GRID_WIDTH = 32;
+  private static final int GRID_WIDTH = 40;
   private static final int GRID_HEIGHT = 5;
-  private static final int GRID_DEPTH = 32;
+  private static final int GRID_DEPTH = 40;
 
   private static final int WORLD_HEIGHT = GRID_HEIGHT * CHUNK_HEIGHT;
 
@@ -137,7 +139,8 @@ public class App extends SimpleApplication {
 
     createCrosshair();
 
-    chunkGenerationExecutorService = Executors.newFixedThreadPool(4);
+    chunkGenerationExecutorService =
+        Executors.newFixedThreadPool(8, new ChunkGenerationThreadFactory());
     initGrid();
 
     rootNode.addLight(new AmbientLight(new ColorRGBA(0.2f, 0.2f, 0.2f, 1f)));
@@ -263,5 +266,14 @@ public class App extends SimpleApplication {
     super.simpleUpdate(tpf);
     chunkGrid.centerAroundWorldLocation(cam.getLocation());
     chunkGrid.update();
+  }
+
+  private static class ChunkGenerationThreadFactory implements ThreadFactory {
+    private final AtomicInteger index = new AtomicInteger(1);
+
+    @Override
+    public Thread newThread(Runnable r) {
+      return new Thread(r, "chunkGenerator-" + index.getAndIncrement());
+    }
   }
 }
