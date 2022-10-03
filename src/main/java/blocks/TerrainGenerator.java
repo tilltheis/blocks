@@ -10,6 +10,8 @@ public class TerrainGenerator {
   private final Noise hillNoise;
   private final Noise oceanNoise;
 
+  public final static float LAND_LEVEL = -0.2f;
+
   public TerrainGenerator(long seed) {
     mountainNoise = new Noise(4, 0, 1500, 4.1, -4, 0, new Random(seed));
     flatlandNoise = new Noise(4, 0, 1500, 3.5, 0, 0, new Random(seed));

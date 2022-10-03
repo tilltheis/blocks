@@ -180,9 +180,17 @@ public class App extends SimpleApplication {
         float height = terrainHeight.height();
         int scaledHeight = (int) ((height + 1) / 2 * WORLD_HEIGHT);
 
-        for (int y = 0; y < CHUNK_HEIGHT && y <= scaledHeight - (location.y * CHUNK_HEIGHT); y++) {
+        int scaledLandLevelHeight = (int) ((TerrainGenerator.LAND_LEVEL + 1) / 2 * WORLD_HEIGHT);
+
+        for (int y = 0;
+            y < CHUNK_HEIGHT
+                && (y <= scaledHeight - (location.y * CHUNK_HEIGHT)
+                    || (terrain == Terrain.OCEAN
+                        && y <= scaledLandLevelHeight - (location.y * CHUNK_HEIGHT)));
+            y++) {
           Block block;
           if (location.y * CHUNK_HEIGHT + y < scaledHeight) block = dirtBlock;
+          else if (location.y * CHUNK_HEIGHT + y > scaledHeight) block = waterBlock;
           else {
             block =
                 switch (terrain) {
