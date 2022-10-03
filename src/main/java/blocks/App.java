@@ -160,12 +160,12 @@ public class App extends SimpleApplication {
     guiNode.attachChild(crosshair);
   }
 
-  private static final Block dirtBlock = new Block(BlockType.DIRT, 1f);
-  private static final Block rockBlock = new Block(BlockType.ROCK, 1f);
-  private static final Block waterBlock = new Block(BlockType.WATER, 1f);
+  private static final Block dirtBlock = new Block(BlockType.DIRT, 1f, false);
+  private static final Block rockBlock = new Block(BlockType.ROCK, 1f, false);
+  private static final Block waterBlock = new Block(BlockType.WATER, 1f, true);
   private static final Block[] shadedGrassBlocks =
       IntStream.rangeClosed(1, 10)
-          .mapToObj(i -> new Block(BlockType.GRASS, 1f / i))
+          .mapToObj(i -> new Block(BlockType.GRASS, 1f / i, false))
           .toArray(Block[]::new);
 
   private Block[][][] createBlocks(Vec3i location) {

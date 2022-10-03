@@ -2,7 +2,9 @@ package blocks;
 
 import com.jme3.asset.AssetManager;
 import com.jme3.material.Material;
+import com.jme3.material.RenderState;
 import com.jme3.math.*;
+import com.jme3.renderer.queue.RenderQueue;
 import com.jme3.scene.*;
 import com.jme3.util.BufferUtils;
 import com.simsilica.mathd.Vec3i;
@@ -75,10 +77,10 @@ public class Chunk {
     int length = 1;
     Vec3i nextLocation = location.add(axisDirection);
 
-    while (size.x > nextLocation.x
-        && size.y > nextLocation.y
-        && size.z > nextLocation.z
-        && isVisibleFrom(nextLocation, visibilityDirection)
+    while (nextLocation.x < size.x
+        && nextLocation.y < size.y
+        && nextLocation.z < size.z
+        && isVisibleFrom(block, nextLocation, visibilityDirection)
         && !mask[nextLocation.x][nextLocation.y][nextLocation.z]
         && block.equals(getBlock(nextLocation.x, nextLocation.y, nextLocation.z))) {
       length += 1;
@@ -88,19 +90,17 @@ public class Chunk {
     return length;
   }
 
-  private boolean isVisibleFrom(Vec3i location, Vec3i direction) {
-    return !hasBlockAt(
-        location.x + direction.x, location.y + direction.y, location.z + direction.z);
-  }
-
-  private boolean hasBlockAt(int x, int y, int z) {
-    return x > 0
-        && y > 0
-        && z > 0
-        && x < size.x
-        && y < size.y
-        && z < size.z
-        && blocks[x][y][z] != null;
+  private boolean isVisibleFrom(Block block, Vec3i location, Vec3i direction) {
+    int x = location.x + direction.x;
+    int y = location.y + direction.y;
+    int z = location.z + direction.z;
+    boolean isLocal = x >= 0 && y >= 0 && z >= 0 && x < size.x && y < size.y && z < size.z;
+    if (isLocal) {
+      Block otherBlock = getBlock(x, y, z);
+      return otherBlock == null || (otherBlock.isTransparent() && !block.equals(otherBlock));
+    } else {
+      return !block.isTransparent(); // TODO replace w/ cross-chunk check when needed
+    }
   }
 
   private void initNode(AssetManager assetManager) {
@@ -122,7 +122,7 @@ public class Chunk {
             Block block = getBlock(x, y, z);
             location.set(x, y, z);
 
-            if (block != null && isVisibleFrom(location, direction)) {
+            if (block != null && isVisibleFrom(block, location, direction)) {
               greedyMeshSize(block, location, direction, mask, inMeshSize);
               updateMeshData(blockToMeshData, rotation, block, direction, location, inMeshSize);
               x += inMeshSize.x - 1;
@@ -266,6 +266,11 @@ public class Chunk {
     ColorRGBA color = block.type().color.mult(block.brightness());
     material.setColor("Ambient", color);
     material.setColor("Diffuse", color);
+
+    if (block.isTransparent()) {
+      material.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
+      geometry.setQueueBucket(RenderQueue.Bucket.Transparent);
+    }
 
     geometry.setMaterial(material);
 
