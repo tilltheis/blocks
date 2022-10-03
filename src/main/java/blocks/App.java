@@ -53,70 +53,8 @@ public class App extends SimpleApplication {
 
   boolean isShiftKeyPressed = false;
 
-  private enum Terrain {
-    MOUNTAIN,
-    FLATLAND,
-    OCEAN,
-    HILL
-  }
-
-  private record TerrainHeight(Terrain terrain, float height) {}
-
   private static final long seed = 100;
-  private static final Noise mountainNoise = new Noise(4, 0, 1500, 4.1, -4, 0, new Random(seed));
-  private static final Noise flatlandNoise = new Noise(4, 0, 1500, 3.5, 0, 0, new Random(seed));
-  private static final Noise hillNoise = new Noise(4, 0, 500, 3.5, 0, 0, new Random(seed));
-  private static final Noise oceanNoise = new Noise(4, 0, 1000, 3.5, 0, 0, new Random(seed));
-
-  private TerrainHeight terrainHeightAt(int x, int z) {
-    float mountainValue = mountainNoise.getValue(x, z);
-    float flatlandValue = flatlandNoise.getValue(x, z);
-    float hillValue = hillNoise.getValue(x, z);
-    float oceanValue = oceanNoise.getValue(x, z);
-
-    float scaledMountainValue = mountainValue > 0 ? mountainValue * mountainValue : mountainValue;
-    float scaledFlatlandValue = flatlandValue * 0.4f;
-    float scaledHillValue = hillValue - 0.5f;
-    float scaledOceanValue = oceanValue * 1;
-
-    Terrain terrain = Terrain.FLATLAND;
-
-    float interpolatedValue = scaledFlatlandValue;
-
-    float mountainDifference = scaledMountainValue - scaledFlatlandValue;
-
-    if (mountainDifference > 0) {
-      if (mountainDifference <= 0.2f) {
-        float mu = mountainDifference * 5;
-        interpolatedValue = cosineInterpolation(scaledMountainValue, scaledFlatlandValue, mu);
-      } else {
-        interpolatedValue = scaledMountainValue;
-      }
-
-      terrain = Terrain.MOUNTAIN;
-    }
-
-    if (scaledHillValue > 0) {
-      interpolatedValue += scaledHillValue;
-      terrain = Terrain.HILL;
-    }
-
-    if (scaledOceanValue < -0.2f) {
-      interpolatedValue += (scaledOceanValue + 0.2f);
-    }
-
-    if (interpolatedValue < -0.2f) {
-      terrain = Terrain.OCEAN;
-    }
-
-    return new TerrainHeight(terrain, interpolatedValue);
-  }
-
-  // mu is percentage between x and y, must be in range (0, 1)
-  private static float cosineInterpolation(float x, float y, float mu) {
-    float mu2 = (1 - FastMath.cos(mu * FastMath.PI)) / 2;
-    return y * (1 - mu2) + x * mu2;
-  }
+  private final TerrainGenerator terrainGenerator = new TerrainGenerator(seed);
 
   @Override
   public void stop() {
@@ -236,9 +174,10 @@ public class App extends SimpleApplication {
     for (int x = 0; x < CHUNK_WIDTH; x++) {
       for (int z = 0; z < CHUNK_DEPTH; z++) {
         TerrainHeight terrainHeight =
-            terrainHeightAt(location.x * CHUNK_WIDTH + x, location.z * CHUNK_DEPTH + z);
-        Terrain terrain = terrainHeight.terrain;
-        float height = terrainHeight.height;
+            terrainGenerator.terrainHeightAt(
+                location.x * CHUNK_WIDTH + x, location.z * CHUNK_DEPTH + z);
+        Terrain terrain = terrainHeight.terrain();
+        float height = terrainHeight.height();
         int scaledHeight = (int) ((height + 1) / 2 * WORLD_HEIGHT);
 
         for (int y = 0; y < CHUNK_HEIGHT && y <= scaledHeight - (location.y * CHUNK_HEIGHT); y++) {
