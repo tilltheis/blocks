@@ -9,13 +9,11 @@ import com.jme3.light.AmbientLight;
 import com.jme3.light.DirectionalLight;
 import com.jme3.light.Light;
 import com.jme3.math.ColorRGBA;
-import com.jme3.math.FastMath;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.system.AppSettings;
 import com.simsilica.mathd.Vec3i;
 
-import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -180,27 +178,25 @@ public class App extends SimpleApplication {
         float height = terrainHeight.height();
         int scaledHeight = (int) ((height + 1) / 2 * WORLD_HEIGHT);
 
-        int scaledLandLevelHeight = (int) ((TerrainGenerator.LAND_LEVEL + 1) / 2 * WORLD_HEIGHT);
-
-        for (int y = 0;
-            y < CHUNK_HEIGHT
-                && (y <= scaledHeight - (location.y * CHUNK_HEIGHT)
-                    || (terrain == Terrain.OCEAN
-                        && y <= scaledLandLevelHeight - (location.y * CHUNK_HEIGHT)));
-            y++) {
+        for (int y = 0; y < CHUNK_HEIGHT && y <= scaledHeight - (location.y * CHUNK_HEIGHT); y++) {
           Block block;
           if (location.y * CHUNK_HEIGHT + y < scaledHeight) block = dirtBlock;
-          else if (location.y * CHUNK_HEIGHT + y > scaledHeight) block = waterBlock;
           else {
             block =
                 switch (terrain) {
                   case MOUNTAIN -> rockBlock;
                   case HILL -> dirtBlock;
                   case FLATLAND -> shadedGrassBlocks[(int) ((height + 1) / 2 * 10)];
-                  case OCEAN -> waterBlock;
+                  case OCEAN -> dirtBlock;
                 };
           }
           blocks[x][y][z] = block;
+        }
+
+        if (terrain == Terrain.OCEAN) {
+          int scaledLandLevelHeight = (int) ((TerrainGenerator.LAND_LEVEL + 1) / 2 * WORLD_HEIGHT);
+          int y = scaledLandLevelHeight - (location.y * CHUNK_HEIGHT);
+          if (y < CHUNK_HEIGHT) blocks[x][y][z] = waterBlock;
         }
       }
     }

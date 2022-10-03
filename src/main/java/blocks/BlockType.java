@@ -6,7 +6,7 @@ public enum BlockType {
   DIRT(ColorRGBA.Brown),
   GRASS(ColorRGBA.Green),
   ROCK(ColorRGBA.DarkGray),
-  WATER(ColorRGBA.Blue.clone().setAlpha(0.5f));
+  WATER(ColorRGBA.Blue.clone().setAlpha(0.8f));
 
   public final ColorRGBA color;
 
