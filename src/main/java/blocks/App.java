@@ -60,14 +60,13 @@ public class App extends SimpleApplication {
 
   private record TerrainHeight(Terrain terrain, float height) {}
 
+  private static final long seed = 100;
+  private static final Noise mountainNoise = new Noise(4, 0, 1500, 4.1, -4, 0, new Random(seed));
+  private static final Noise flatlandNoise = new Noise(4, 0, 1500, 3.5, 0, 0, new Random(seed));
+  private static final Noise hillNoise = new Noise(4, 0, 500, 3.5, 0, 0, new Random(seed));
+  private static final Noise oceanNoise = new Noise(4, 0, 1000, 3.5, 0, 0, new Random(seed));
+
   private TerrainHeight terrainHeightAt(int x, int z) {
-    long seed = 100;
-
-    Noise mountainNoise = new Noise(4, 0, 1500, 4.1, -4, 0, new Random(seed));
-    Noise flatlandNoise = new Noise(4, 0, 1500, 3.5, 0, 0, new Random(seed));
-    Noise hillNoise = new Noise(4, 0, 500, 3.5, 0, 0, new Random(seed));
-    Noise oceanNoise = new Noise(4, 0, 1000, 3.5, 0, 0, new Random(seed));
-
     float mountainValue = mountainNoise.getValue(x, z);
     float flatlandValue = flatlandNoise.getValue(x, z);
     float hillValue = hillNoise.getValue(x, z);

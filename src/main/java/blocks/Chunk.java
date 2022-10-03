@@ -13,7 +13,6 @@ import lombok.ToString;
 
 import java.text.MessageFormat;
 import java.util.*;
-import java.util.stream.IntStream;
 
 // TODO optimize https://0fps.net/2012/01/14/an-analysis-of-minecraft-like-engines/
 @EqualsAndHashCode
@@ -25,7 +24,11 @@ public class Chunk {
 
   @Getter private final Node node;
 
-  private final Map<Vec3i, Quaternion> rotationForDirection =
+  private static final Vec3i UNIT_X = new Vec3i(1, 0, 0);
+  private static final Vec3i UNIT_Y = new Vec3i(0, 1, 0);
+  private static final Vec3i UNIT_Z = new Vec3i(0, 0, 1);
+
+  private static final Map<Vec3i, Quaternion> rotationForDirection =
       Map.of(
           new Vec3i(0, 0, 1),
           new Quaternion().fromAngleAxis(FastMath.PI, Vector3f.UNIT_Y),
@@ -37,7 +40,7 @@ public class Chunk {
           new Quaternion().fromAngleAxis(-FastMath.HALF_PI, Vector3f.UNIT_Y),
           new Vec3i(-1, 0, 0),
           new Quaternion().fromAngleAxis(FastMath.HALF_PI, Vector3f.UNIT_Y));
-  private final Vector2f[] meshTextureCoordinates = {
+  private static final Vector2f[] meshTextureCoordinates = {
     new Vector2f(0, 0), new Vector2f(1, 0), new Vector2f(0, 1), new Vector2f(1, 1)
   };
 
@@ -64,11 +67,11 @@ public class Chunk {
   }
 
   private int equalBlockCountInDirection(
-      @NonNull Block block,
-      @NonNull Vec3i location,
-      @NonNull Vec3i axisDirection,
-      @NonNull Vec3i visibilityDirection,
-      boolean @NonNull [] @NonNull [] @NonNull [] mask) {
+      Block block,
+      Vec3i location,
+      Vec3i axisDirection,
+      Vec3i visibilityDirection,
+      boolean[][][] mask) {
     int length = 1;
     Vec3i nextLocation = location.add(axisDirection);
 
@@ -85,22 +88,25 @@ public class Chunk {
     return length;
   }
 
-  private boolean isVisibleFrom(@NonNull Vec3i location, @NonNull Vec3i direction) {
-    return !hasBlockAt(location.add(direction));
+  private boolean isVisibleFrom(Vec3i location, Vec3i direction) {
+    return !hasBlockAt(
+        location.x + direction.x, location.y + direction.y, location.z + direction.z);
   }
 
-  private boolean hasBlockAt(@NonNull Vec3i location) {
-    return location.x > 0
-        && location.y > 0
-        && location.z > 0
-        && location.x < size.x
-        && location.y < size.y
-        && location.z < size.z
-        && blocks[location.x][location.y][location.z] != null;
+  private boolean hasBlockAt(int x, int y, int z) {
+    return x > 0
+        && y > 0
+        && z > 0
+        && x < size.x
+        && y < size.y
+        && z < size.z
+        && blocks[x][y][z] != null;
   }
 
-  private void initNode(@NonNull AssetManager assetManager) {
+  private void initNode(AssetManager assetManager) {
     Map<Block, MeshData> blockToMeshData = new HashMap<>();
+    Vec3i inMeshSize = new Vec3i();
+    Vec3i location = new Vec3i();
 
     for (Map.Entry<Vec3i, Quaternion> entry : rotationForDirection.entrySet()) {
       Vec3i direction = entry.getKey();
@@ -114,11 +120,12 @@ public class Chunk {
             if (mask[x][y][z]) continue;
 
             Block block = getBlock(x, y, z);
-            Vec3i location = new Vec3i(x, y, z);
+            location.set(x, y, z);
 
             if (block != null && isVisibleFrom(location, direction)) {
-              Vec3i length = greedyMeshSize(block, location, direction, mask);
-              updateMeshData(blockToMeshData, rotation, block, direction, location, length);
+              greedyMeshSize(block, location, direction, mask, inMeshSize);
+              updateMeshData(blockToMeshData, rotation, block, direction, location, inMeshSize);
+              x += inMeshSize.x - 1;
             }
           }
         }
@@ -138,37 +145,26 @@ public class Chunk {
     }
   }
 
-  private Vec3i greedyMeshSize(
-      @NonNull Block block,
-      @NonNull Vec3i location,
-      @NonNull Vec3i direction,
-      boolean @NonNull [] @NonNull [] @NonNull [] mask) {
-    int xLen = equalBlockCountInDirection(block, location, new Vec3i(1, 0, 0), direction, mask);
+  private void greedyMeshSize(
+      Block block, Vec3i location, Vec3i direction, boolean[][][] mask, Vec3i outMeshSize) {
+    int xLen = equalBlockCountInDirection(block, location, UNIT_X, direction, mask);
 
-    int zLen =
-        IntStream.range(0, xLen)
-            .map(
-                offset ->
-                    equalBlockCountInDirection(
-                        block, location.add(offset, 0, 0), new Vec3i(0, 0, 1), direction, mask))
-            .min()
-            .getAsInt();
+    int zLen = Integer.MAX_VALUE;
+    for (int offset = 0; offset < xLen; offset++) {
+      int count =
+          equalBlockCountInDirection(block, location.add(offset, 0, 0), UNIT_Z, direction, mask);
+      if (count < zLen) zLen = count;
+    }
 
-    int yLen =
-        IntStream.range(0, xLen)
-            .flatMap(
-                xOffset ->
-                    IntStream.range(0, zLen)
-                        .map(
-                            zOffset ->
-                                equalBlockCountInDirection(
-                                    block,
-                                    location.add(xOffset, 0, zOffset),
-                                    new Vec3i(0, 1, 0),
-                                    direction,
-                                    mask)))
-            .min()
-            .getAsInt();
+    int yLen = Integer.MAX_VALUE;
+    for (int xOffset = 0; xOffset < xLen; xOffset++) {
+      for (int zOffset = 0; zOffset < zLen; zOffset++) {
+        int count =
+            equalBlockCountInDirection(
+                block, location.add(xOffset, 0, zOffset), UNIT_Y, direction, mask);
+        if (count < yLen) yLen = count;
+      }
+    }
 
     for (int i = 0; i < xLen; i++) {
       for (int k = 0; k < zLen; k++) {
@@ -178,16 +174,18 @@ public class Chunk {
       }
     }
 
-    return new Vec3i(xLen, yLen, zLen);
+    outMeshSize.x = xLen;
+    outMeshSize.y = yLen;
+    outMeshSize.z = zLen;
   }
 
   private void updateMeshData(
-      @NonNull Map<Block, MeshData> blockToMeshData,
-      @NonNull Quaternion rotation,
-      @NonNull Block block,
-      @NonNull Vec3i direction,
-      @NonNull Vec3i location,
-      @NonNull Vec3i length) {
+      Map<Block, MeshData> blockToMeshData,
+      Quaternion rotation,
+      Block block,
+      Vec3i direction,
+      Vec3i location,
+      Vec3i length) {
     Vector3f lowerLeftRotation = rotation.mult(new Vector3f(-0.5f, -0.5f, -0.5f));
     Vector3f lowerRightRotation = rotation.mult(new Vector3f(0.5f, -0.5f, -0.5f));
     Vector3f upperLeftRotation = rotation.mult(new Vector3f(-0.5f, 0.5f, -0.5f));
@@ -237,12 +235,12 @@ public class Chunk {
   }
 
   private Spatial createMesh(
-      @NonNull Block block,
-      @NonNull List<Vector3f> vertices,
-      @NonNull List<Vector2f> textureCoordinates,
-      @NonNull List<Integer> indexes,
-      @NonNull List<Float> normals,
-      @NonNull AssetManager assetManager) {
+      Block block,
+      List<Vector3f> vertices,
+      List<Vector2f> textureCoordinates,
+      List<Integer> indexes,
+      List<Float> normals,
+      AssetManager assetManager) {
     //    System.out.println("vertices.size() = " + vertices.size());
 
     Mesh mesh = new Mesh();
