@@ -73,7 +73,7 @@ public class App extends SimpleApplication {
     float hillValue = hillNoise.getValue(x, z);
     float oceanValue = oceanNoise.getValue(x, z);
 
-    float scaledMountainValue = mountainValue * 1;
+    float scaledMountainValue = mountainValue > 0 ? mountainValue * mountainValue : mountainValue;
     float scaledFlatlandValue = flatlandValue * 0.4f;
     float scaledHillValue = hillValue - 0.5f;
     float scaledOceanValue = oceanValue * 1;
