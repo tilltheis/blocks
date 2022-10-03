@@ -26,7 +26,7 @@ public class App extends SimpleApplication {
     App app = new App();
 
     AppSettings settings = new AppSettings(true);
-    settings.setTitle("My Awesome Game");
+    settings.setTitle("Blocks");
     settings.setResolution(1920, 1080);
     app.setSettings(settings);
 
@@ -70,6 +70,8 @@ public class App extends SimpleApplication {
         new Vector3f(
             GRID_WIDTH * CHUNK_WIDTH / 2f, WORLD_HEIGHT / 2f, GRID_DEPTH * CHUNK_DEPTH / 2f),
         new Vector3f(0, GRID_HEIGHT / 2f, 0));
+
+    viewPort.setBackgroundColor(ColorRGBA.Blue.clone().interpolateLocal(ColorRGBA.White, 0.15f));
 
     initInputListeners();
 
