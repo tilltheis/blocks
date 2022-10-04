@@ -1,0 +1,14 @@
+MaterialDef Water {
+
+    Technique {
+        VertexShader GLSL310 GLSL300 GLSL100 GLSL150:   Water.vert
+        FragmentShader GLSL310 GLSL300 GLSL100 GLSL150: Water.frag
+
+        WorldParameters {
+            WorldViewProjectionMatrix
+            WorldMatrix
+            Time
+        }
+    }
+
+}

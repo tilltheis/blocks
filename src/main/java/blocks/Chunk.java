@@ -261,11 +261,17 @@ public class Chunk {
     String name = MessageFormat.format("block={0} location={1} size={2}", block, location, size);
     Geometry geometry = new Geometry(name, mesh);
 
-    Material material = new Material(assetManager, "Common/MatDefs/Light/Lighting.j3md");
-    material.setBoolean("UseMaterialColors", true);
-    ColorRGBA color = block.type().color.mult(block.brightness());
-    material.setColor("Ambient", color);
-    material.setColor("Diffuse", color);
+    Material material;
+
+    if (block.type() == BlockType.WATER) {
+      material = new Material(assetManager, "Water.j3md");
+    } else {
+      material = new Material(assetManager, "Common/MatDefs/Light/Lighting.j3md");
+      material.setBoolean("UseMaterialColors", true);
+      ColorRGBA color = block.type().color.mult(block.brightness());
+      material.setColor("Ambient", color);
+      material.setColor("Diffuse", color);
+    }
 
     if (block.isTransparent()) {
       material.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);

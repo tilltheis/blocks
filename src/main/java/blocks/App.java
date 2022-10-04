@@ -88,6 +88,8 @@ public class App extends SimpleApplication {
   }
 
   private void cleanup() {
+    assetManager.clearCache();
+
     chunkGenerationExecutorService.shutdownNow();
 
     rootNode.detachAllChildren();
