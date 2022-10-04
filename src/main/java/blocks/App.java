@@ -198,7 +198,7 @@ public class App extends SimpleApplication {
         if (terrain == Terrain.OCEAN) {
           int scaledLandLevelHeight = (int) ((TerrainGenerator.LAND_LEVEL + 1) / 2 * WORLD_HEIGHT);
           int y = scaledLandLevelHeight - (location.y * CHUNK_HEIGHT);
-          if (y < CHUNK_HEIGHT) blocks[x][y][z] = waterBlock;
+          if (y >= 0 && y < CHUNK_HEIGHT) blocks[x][y][z] = waterBlock;
         }
       }
     }

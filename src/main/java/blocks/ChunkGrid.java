@@ -178,14 +178,19 @@ public class ChunkGrid {
     grid[gridLocation.x][gridLocation.y][gridLocation.z] =
         executorService.submit(
             () -> {
-              Chunk chunk =
-                  new Chunk(
-                      chunkLocation,
-                      chunkSize,
-                      createChunkBlocks.apply(chunkLocation),
-                      assetManager);
-              updateList.add(new AbstractMap.SimpleEntry<>(nodeIndex, chunk));
-              return chunk;
+              try {
+                Chunk chunk =
+                    new Chunk(
+                        chunkLocation,
+                        chunkSize,
+                        createChunkBlocks.apply(chunkLocation),
+                        assetManager);
+                updateList.add(new AbstractMap.SimpleEntry<>(nodeIndex, chunk));
+                return chunk;
+              } catch (Throwable throwable) {
+                throwable.printStackTrace();
+                throw throwable;
+              }
             });
   }
 }
