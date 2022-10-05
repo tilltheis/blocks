@@ -115,6 +115,8 @@ public class App extends SimpleApplication {
 
   private void shiftActionListener(String name, boolean keyPressed, float tpf) {
     isShiftKeyPressed = keyPressed;
+    if (keyPressed) flyCam.setMoveSpeed(10);
+    else flyCam.setMoveSpeed(250);
   }
 
   private void debugGameListener(String name, boolean keyPressed, float tpf) {
