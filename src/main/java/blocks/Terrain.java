@@ -1,8 +1,5 @@
 package blocks;
 
-enum Terrain {
-  MOUNTAIN,
-  FLATLAND,
-  OCEAN,
-  HILL
-}
+import java.util.Optional;
+
+record Terrain(TerrainType terrainType, float height, Optional<Flora> flora) {}

@@ -2,6 +2,7 @@ package blocks;
 
 import com.jme3.math.FastMath;
 
+import java.util.Optional;
 import java.util.Random;
 
 public class TerrainGenerator {
@@ -10,6 +11,8 @@ public class TerrainGenerator {
   private final Noise hillNoise;
   private final Noise oceanNoise;
 
+  private final Noise treeNoise;
+
   public static final float LAND_LEVEL = -0.2f;
 
   public TerrainGenerator(long seed) {
@@ -17,6 +20,7 @@ public class TerrainGenerator {
     flatlandNoise = new Noise(4, 0, 1500, 3.5, 0, 0, new Random(seed));
     hillNoise = new Noise(4, 0, 500, 3.5, 0, 0, new Random(seed));
     oceanNoise = new Noise(4, 0, 1000, 3.5, 0, 0, new Random(seed));
+    treeNoise = new Noise(4, 0, 10, 4, 0, 0, new Random(seed));
   }
 
   // mu is percentage between x and y, must be in range (0, 1)
@@ -25,7 +29,7 @@ public class TerrainGenerator {
     return y * (1 - mu2) + x * mu2;
   }
 
-  public TerrainHeight terrainHeightAt(int x, int z) {
+  public Terrain terrainAt(int x, int z) {
     float mountainValue = mountainNoise.getValue(x, z);
     float flatlandValue = flatlandNoise.getValue(x, z);
     float hillValue = hillNoise.getValue(x, z);
@@ -36,7 +40,7 @@ public class TerrainGenerator {
     float scaledHillValue = hillValue - 0.5f;
     float scaledOceanValue = oceanValue * 1;
 
-    Terrain terrain = Terrain.FLATLAND;
+    TerrainType terrainType = TerrainType.FLATLAND;
 
     float interpolatedValue = scaledFlatlandValue;
 
@@ -50,12 +54,12 @@ public class TerrainGenerator {
         interpolatedValue = scaledMountainValue;
       }
 
-      terrain = Terrain.MOUNTAIN;
+      terrainType = TerrainType.MOUNTAIN;
     }
 
     if (scaledHillValue > 0) {
       interpolatedValue += scaledHillValue;
-      terrain = Terrain.HILL;
+      terrainType = TerrainType.HILL;
     }
 
     if (scaledOceanValue < -0.2f) {
@@ -63,9 +67,22 @@ public class TerrainGenerator {
     }
 
     if (interpolatedValue < -0.2f) {
-      terrain = Terrain.OCEAN;
+      terrainType = TerrainType.OCEAN;
     }
 
-    return new TerrainHeight(terrain, interpolatedValue);
+    Optional<Flora> flora = floraAt(x, z, terrainType);
+    return new Terrain(terrainType, interpolatedValue, flora);
+  }
+
+  private Optional<Flora> floraAt(int x, int z, TerrainType terrainType) {
+    if (terrainType == TerrainType.FLATLAND) {
+      int scale = 1000;
+      float treeValue = treeNoise.getValue(x * scale, z * scale);
+      float scaledTreeValue = treeValue * treeValue * treeValue;
+      boolean shouldSpawn = scaledTreeValue >= 0.5;
+      if (shouldSpawn) return Optional.of(Flora.TREE);
+    }
+
+    return Optional.empty();
   }
 }

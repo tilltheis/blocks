@@ -52,7 +52,7 @@ public class App extends SimpleApplication {
   boolean isShiftKeyPressed = false;
 
   private static final long seed = 100;
-  private final TerrainGenerator terrainGenerator = new TerrainGenerator(seed);
+  private TerrainGenerator terrainGenerator;
 
   @Override
   public void stop() {
@@ -76,6 +76,8 @@ public class App extends SimpleApplication {
     initInputListeners();
 
     createCrosshair();
+
+    terrainGenerator = new TerrainGenerator(seed);
 
     chunkGenerationExecutorService =
         Executors.newFixedThreadPool(8, new ChunkGenerationThreadFactory());
@@ -167,6 +169,8 @@ public class App extends SimpleApplication {
   private static final Block dirtBlock = new Block(BlockType.DIRT, 1f, false);
   private static final Block rockBlock = new Block(BlockType.ROCK, 1f, false);
   private static final Block waterBlock = new Block(BlockType.WATER, 1f, true);
+  private static final Block woodBlock = new Block(BlockType.WOOD, 1f, false);
+  private static final Block leafBlock = new Block(BlockType.GRASS, 0.7f, true);
   private static final Block[] shadedGrassBlocks =
       IntStream.rangeClosed(1, 10)
           .mapToObj(i -> new Block(BlockType.GRASS, 1f / i, false))
@@ -177,11 +181,9 @@ public class App extends SimpleApplication {
 
     for (int x = 0; x < CHUNK_WIDTH; x++) {
       for (int z = 0; z < CHUNK_DEPTH; z++) {
-        TerrainHeight terrainHeight =
-            terrainGenerator.terrainHeightAt(
-                location.x * CHUNK_WIDTH + x, location.z * CHUNK_DEPTH + z);
-        Terrain terrain = terrainHeight.terrain();
-        float height = terrainHeight.height();
+        Terrain terrain =
+            terrainGenerator.terrainAt(location.x * CHUNK_WIDTH + x, location.z * CHUNK_DEPTH + z);
+        float height = terrain.height();
         int scaledHeight = (int) ((height + 1) / 2 * WORLD_HEIGHT);
 
         for (int y = 0; y < CHUNK_HEIGHT && y <= scaledHeight - (location.y * CHUNK_HEIGHT); y++) {
@@ -189,7 +191,7 @@ public class App extends SimpleApplication {
           if (location.y * CHUNK_HEIGHT + y < scaledHeight) block = dirtBlock;
           else {
             block =
-                switch (terrain) {
+                switch (terrain.terrainType()) {
                   case MOUNTAIN -> rockBlock;
                   case HILL -> dirtBlock;
                   case FLATLAND -> shadedGrassBlocks[(int) ((height + 1) / 2 * 10)];
@@ -199,15 +201,66 @@ public class App extends SimpleApplication {
           blocks[x][y][z] = block;
         }
 
-        if (terrain == Terrain.OCEAN) {
+        if (terrain.terrainType() == TerrainType.OCEAN) {
           int scaledLandLevelHeight = (int) ((TerrainGenerator.LAND_LEVEL + 1) / 2 * WORLD_HEIGHT);
           int y = scaledLandLevelHeight - (location.y * CHUNK_HEIGHT);
           if (y >= 0 && y < CHUNK_HEIGHT) blocks[x][y][z] = waterBlock;
+        }
+
+        if (terrain.flora().isPresent()) {
+          int y = scaledHeight - (location.y * CHUNK_HEIGHT);
+          if (y >= 0 && y < CHUNK_HEIGHT) {
+            switch (terrain.flora().get()) {
+              case TREE -> createTreeAt(x, y, z, blocks);
+            }
+          }
         }
       }
     }
 
     return blocks;
+  }
+
+  // for now: don't create tree if parts of it would outreach the current chunk
+  // for later: only create parts of tree that fit current chunk and tell chunk grid to also create
+  //            it in adjacent chunks eg by simply passing the model block array w/ its coords on
+  //            and let chunk grid figure everything out
+  private void createTreeAt(int x, int y, int z, Block[][][] blocks) {
+    Vec3i size = Flora.TREE.size;
+
+    if (x - (size.x - 1) / 2 < 0
+        || y < 0
+        || z - (size.z - 1) / 2 < 0
+        || x + size.x / 2 >= CHUNK_WIDTH
+        || y + size.y >= CHUNK_HEIGHT
+        || z + size.z / 2 >= CHUNK_DEPTH) {
+      return;
+    }
+
+    for (int i = 0; i < size.x; i++) {
+      int chunkX = x - (size.x - 1) / 2 + i;
+      for (int j = 0; j < size.y; j++) {
+        int chunkY = y + j;
+        for (int k = 0; k < size.z; k++) {
+          int chunkZ = z - (size.z - 1) / 2 + k;
+
+          Block block = null;
+          if (i == size.x / 2 && k == size.z / 2) {
+            block = j == size.y - 1 ? leafBlock : woodBlock;
+          } else if (j >= size.y - 2) {
+            if (i > 0 && i < size.x - 1 && k > 0 && k < size.z - 1) {
+              block = leafBlock;
+            }
+          } else if (j >= size.y - 4) {
+            block = leafBlock;
+          }
+
+          if (block != null && blocks[chunkX][chunkY][chunkZ] != woodBlock) {
+            blocks[chunkX][chunkY][chunkZ] = block;
+          }
+        }
+      }
+    }
   }
 
   @Override
