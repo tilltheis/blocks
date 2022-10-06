@@ -78,16 +78,18 @@ public class ChunkGrid {
   }
 
   private Vec3i calculateCenterGridLocation(Vector3f camLocation) {
-    // round because both (int)-0.9f and (int)+0.9f result in 0, effectively spanning 2 ints
+    // floor because both (int)-0.9f and (int)+0.9f result in 0, effectively spanning 2 ints
     return new Vec3i(
-        Math.round(camLocation.x / chunkSize.x), 0, Math.round((camLocation.z / chunkSize.z)));
+        (int) Math.floor(camLocation.x / chunkSize.x),
+        0,
+        (int) Math.floor((camLocation.z / chunkSize.z)));
   }
 
   private Vec3i calculateLowerLeftGridLocation(Vector3f camLocation) {
     return new Vec3i(
-        Math.round(camLocation.x / chunkSize.x - gridSize.x / 2f),
+        (int) Math.floor(camLocation.x / chunkSize.x - gridSize.x / 2f),
         0,
-        Math.round(camLocation.z / chunkSize.z - gridSize.z / 2f));
+        (int) Math.floor(camLocation.z / chunkSize.z - gridSize.z / 2f));
   }
 
   public void centerAroundWorldLocation(Vector3f newCenterWorldLocation) {

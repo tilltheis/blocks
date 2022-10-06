@@ -11,7 +11,8 @@ float easeInOutSine(float x) {
 // scrolling tiles
 void main(){
     float offset = mod(g_Time/3, 2);
-    float brightness = mod(int(worldPos.x + easeInOutSine(offset)) + int(worldPos.z), 2);// 0 or 1
+    // floor because both (int)-0.9f and (int)+0.9f result in 0, effectively spanning 2 ints
+    float brightness = mod(floor(worldPos.x + easeInOutSine(offset)) + floor(worldPos.z), 2);// 0 or 1
     float colorValue = 0.5 * (brightness + 1);
     gl_FragColor = vec4(0.0, 0.0, colorValue, 0.9);
 }
