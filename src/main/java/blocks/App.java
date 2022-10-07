@@ -209,10 +209,8 @@ public class App extends SimpleApplication {
 
         if (terrain.flora().isPresent()) {
           int y = scaledHeight - (location.y * CHUNK_HEIGHT);
-          if (y >= 0 && y < CHUNK_HEIGHT) {
-            switch (terrain.flora().get()) {
-              case TREE -> createTreeAt(x, y, z, blocks);
-            }
+          switch (terrain.flora().get()) {
+            case TREE -> createTreeAt(x, y, z, blocks, location);
           }
         }
       }
@@ -221,28 +219,76 @@ public class App extends SimpleApplication {
     return blocks;
   }
 
-  // for now: don't create tree if parts of it would outreach the current chunk
-  // for later: only create parts of tree that fit current chunk and tell chunk grid to also create
-  //            it in adjacent chunks eg by simply passing the model block array w/ its coords on
-  //            and let chunk grid figure everything out
-  private void createTreeAt(int x, int y, int z, Block[][][] blocks) {
+  // x and z must be within the chunk bounds, must be inside the tree zone
+  // chunkLocalreeStartY may be outside the chunk bounds,
+  //   must be at the start of the tree zone in its chunk
+  private void createTreeAt(
+      int x, int chunkLocalTreeStartY, int z, Block[][][] blocks, Vec3i chunkLocation) {
     Vec3i size = Flora.TREE.size;
 
-    if (x - (size.x - 1) / 2 < 0
-        || y < 0
-        || z - (size.z - 1) / 2 < 0
-        || x + size.x / 2 >= CHUNK_WIDTH
-        || y + size.y >= CHUNK_HEIGHT
-        || z + size.z / 2 >= CHUNK_DEPTH) {
+    if (chunkLocalTreeStartY <= -size.y || chunkLocalTreeStartY >= CHUNK_HEIGHT) return;
+
+    // scan towards lower x to find edge of tree zone
+    boolean reachedTreeZoneEndX = false;
+    int treeX;
+    for (treeX = 1; treeX <= size.x; treeX++) {
+      if (!terrainGenerator.hasTreeAt(
+          chunkLocation.x * CHUNK_WIDTH + x - treeX, chunkLocation.z * CHUNK_WIDTH + z)) {
+        reachedTreeZoneEndX = true;
+        break;
+      }
+    }
+    if (!reachedTreeZoneEndX) return;
+
+    // scan towards lower z to find edge of tree zone
+    boolean reachedTreeZoneEndZ = false;
+    int treeZ;
+    for (treeZ = 1; treeZ <= size.z; treeZ++) {
+      if (!terrainGenerator.hasTreeAt(
+          chunkLocation.x * CHUNK_WIDTH + x, chunkLocation.z * CHUNK_WIDTH + z - treeZ)) {
+        reachedTreeZoneEndZ = true;
+        break;
+      }
+    }
+    if (!reachedTreeZoneEndZ) return;
+
+    int treeStartX = x - treeX + 1;
+    int treeStartZ = z - treeZ + 1;
+
+    int centerX = treeStartX + size.x / 2;
+    int centerZ = treeStartZ + size.z / 2;
+    int globalCenterX = chunkLocation.x * CHUNK_WIDTH + centerX;
+    int globalCenterZ = chunkLocation.z * CHUNK_DEPTH + centerZ;
+    Terrain centerTerrain = terrainGenerator.terrainAt(globalCenterX, globalCenterZ);
+
+    if (centerTerrain.flora().isEmpty() || centerTerrain.flora().get() != Flora.TREE) return;
+
+    // the parameter can be wrong if it doesn't come from the center chunk
+    int treeStartY =
+        (int) ((centerTerrain.height() + 1) / 2 * WORLD_HEIGHT) - (chunkLocation.y * CHUNK_HEIGHT);
+
+    // neither x nor z are the tree zone start in this chunk
+    if (!(((treeStartX < 0 && x == 0) || (treeStartX >= 0 && treeStartX == x))
+        && ((treeStartZ < 0 && z == 0) || (treeStartZ >= 0 && treeStartZ == z)))) {
       return;
     }
 
-    for (int i = 0; i < size.x; i++) {
-      int chunkX = x - (size.x - 1) / 2 + i;
-      for (int j = 0; j < size.y; j++) {
-        int chunkY = y + j;
-        for (int k = 0; k < size.z; k++) {
-          int chunkZ = z - (size.z - 1) / 2 + k;
+    int xOffset = Math.max(0, -treeStartX);
+    int zOffset = Math.max(0, -treeStartZ);
+    int yOffset = Math.max(0, -treeStartY);
+
+    int y = treeStartY + yOffset;
+
+    int xLimit = Math.min(size.x, CHUNK_WIDTH - x);
+    int zLimit = Math.min(size.z, CHUNK_DEPTH - z);
+    int yLimit = Math.min(size.y, CHUNK_HEIGHT - y);
+
+    for (int i = xOffset; i < xLimit; i++) {
+      int chunkX = treeStartX + i;
+      for (int j = yOffset; j < yLimit; j++) {
+        int chunkY = treeStartY + j;
+        for (int k = zOffset; k < zLimit; k++) {
+          int chunkZ = treeStartZ + k;
 
           Block block = null;
           if (i == size.x / 2 && k == size.z / 2) {
