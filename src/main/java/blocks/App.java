@@ -13,6 +13,7 @@ import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.system.AppSettings;
 import com.simsilica.mathd.Vec3i;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -20,6 +21,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
+@Slf4j
 public class App extends SimpleApplication {
 
   public static void main(String[] args) {
@@ -47,7 +49,8 @@ public class App extends SimpleApplication {
 
   ChunkGrid chunkGrid;
 
-  private ExecutorService chunkGenerationExecutorService;
+  private ExecutorService chunkBlockGenerationExecutorService;
+  private ExecutorService chunkMeshGenerationExecutorService;
 
   boolean isShiftKeyPressed = false;
 
@@ -55,9 +58,10 @@ public class App extends SimpleApplication {
   private TerrainGenerator terrainGenerator;
 
   @Override
-  public void stop() {
-    chunkGenerationExecutorService.shutdownNow();
-    super.stop();
+  public void destroy() {
+    chunkBlockGenerationExecutorService.shutdownNow();
+    chunkMeshGenerationExecutorService.shutdownNow();
+    super.destroy();
   }
 
   @Override
@@ -79,7 +83,9 @@ public class App extends SimpleApplication {
 
     terrainGenerator = new TerrainGenerator(seed);
 
-    chunkGenerationExecutorService =
+    chunkBlockGenerationExecutorService =
+        Executors.newFixedThreadPool(8, new ChunkGenerationThreadFactory());
+    chunkMeshGenerationExecutorService =
         Executors.newFixedThreadPool(8, new ChunkGenerationThreadFactory());
     initGrid();
 
@@ -92,7 +98,8 @@ public class App extends SimpleApplication {
   private void cleanup() {
     assetManager.clearCache();
 
-    chunkGenerationExecutorService.shutdownNow();
+    chunkBlockGenerationExecutorService.shutdownNow();
+    chunkMeshGenerationExecutorService.shutdownNow();
 
     rootNode.detachAllChildren();
 
@@ -137,7 +144,7 @@ public class App extends SimpleApplication {
           cam.setRotation(oldCamRotation);
         }
 
-        System.out.println("resetGame");
+        log.info("resetGame");
       }
     }
   }
@@ -148,7 +155,8 @@ public class App extends SimpleApplication {
             new Vec3i(GRID_WIDTH, GRID_HEIGHT, GRID_DEPTH),
             new Vec3i(CHUNK_WIDTH, CHUNK_HEIGHT, CHUNK_DEPTH),
             cam.getLocation(),
-            chunkGenerationExecutorService,
+            chunkBlockGenerationExecutorService,
+            chunkMeshGenerationExecutorService,
             assetManager,
             this::createBlocks);
     rootNode.attachChild(chunkGrid.getNode());

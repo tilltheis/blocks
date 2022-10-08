@@ -22,9 +22,9 @@ import java.util.*;
 public class Chunk {
   @ToString.Include @Getter private final Vec3i location;
   @ToString.Include @Getter private final Vec3i size;
-  private final Block[][][] blocks;
+  @Getter private final Block[][][] blocks;
 
-  @Getter private final Node node;
+  private Node node;
 
   private static final Vec3i UNIT_X = new Vec3i(1, 0, 0);
   private static final Vec3i UNIT_Y = new Vec3i(0, 1, 0);
@@ -47,7 +47,7 @@ public class Chunk {
   };
   private final ChunkGrid chunkGrid;
 
-  private final Map<Vec3i, Block[][][]> adjacentChunkBlocks = new HashMap<>(4);
+  private final AssetManager assetManager;
 
   public Chunk(
       @NonNull Vec3i location,
@@ -67,21 +67,28 @@ public class Chunk {
 
     this.size = size;
     this.blocks = blocks;
+    this.assetManager = assetManager;
+  }
 
-    this.node = new Node();
-    node.setLocalTranslation(
-        this.location.x * size.x, this.location.y * size.y, this.location.z * size.z);
-    initNode(assetManager);
+  public Node getNode() {
+    if (node == null) {
+      node = new Node();
+      node.setLocalTranslation(
+          this.location.x * size.x, this.location.y * size.y, this.location.z * size.z);
+      if (node.getChildren().isEmpty()) initNode(assetManager);
+    }
+
+    return node;
   }
 
   private int equalBlockCountInDirection(
       Block block,
-      Vec3i location,
+      Vec3i blockLocation,
       Vec3i axisDirection,
       Vec3i visibilityDirection,
       boolean[][][] mask) {
     int length = 1;
-    Vec3i nextLocation = location.add(axisDirection);
+    Vec3i nextLocation = blockLocation.add(axisDirection);
 
     while (nextLocation.x < size.x
         && nextLocation.y < size.y
@@ -106,12 +113,9 @@ public class Chunk {
       return otherBlock == null || (otherBlock.isTransparent() && !block.equals(otherBlock));
     } else {
       if (!block.isTransparent()) return true;
-      else if (block.type() == BlockType.WATER) return false;
+      if (block.type() == BlockType.WATER) return false;
 
-      // TODO cache/insert this in the chunk grid when better performance is needed
-      Block[][][] adjacentChunkBlocks =
-          this.adjacentChunkBlocks.computeIfAbsent(
-              location.add(direction), chunkGrid::generateChunkBlocks);
+      Block[][][] adjacentChunkBlocks = chunkGrid.getChunkBlocks(location.add(direction));
       Block otherBlock =
           adjacentChunkBlocks[(x + size.x) % size.x][(y + size.y) % size.y][(z + size.z) % size.z];
       return otherBlock == null || (otherBlock.isTransparent() && !block.equals(otherBlock));
@@ -121,7 +125,7 @@ public class Chunk {
   private void initNode(AssetManager assetManager) {
     Map<Block, MeshData> blockToMeshData = new HashMap<>();
     Vec3i inMeshSize = new Vec3i();
-    Vec3i location = new Vec3i();
+    Vec3i blockLocation = new Vec3i();
 
     for (Map.Entry<Vec3i, Quaternion> entry : rotationForDirection.entrySet()) {
       Vec3i direction = entry.getKey();
@@ -135,11 +139,12 @@ public class Chunk {
             if (mask[x][y][z]) continue;
 
             Block block = getBlock(x, y, z);
-            location.set(x, y, z);
+            blockLocation.set(x, y, z);
 
-            if (block != null && isVisibleFrom(block, location, direction)) {
-              greedyMeshSize(block, location, direction, mask, inMeshSize);
-              updateMeshData(blockToMeshData, rotation, block, direction, location, inMeshSize);
+            if (block != null && isVisibleFrom(block, blockLocation, direction)) {
+              greedyMeshSize(block, blockLocation, direction, mask, inMeshSize);
+              updateMeshData(
+                  blockToMeshData, rotation, block, direction, blockLocation, inMeshSize);
               x += inMeshSize.x - 1;
             }
           }
@@ -161,13 +166,14 @@ public class Chunk {
   }
 
   private void greedyMeshSize(
-      Block block, Vec3i location, Vec3i direction, boolean[][][] mask, Vec3i outMeshSize) {
-    int xLen = equalBlockCountInDirection(block, location, UNIT_X, direction, mask);
+      Block block, Vec3i blockLocation, Vec3i direction, boolean[][][] mask, Vec3i outMeshSize) {
+    int xLen = equalBlockCountInDirection(block, blockLocation, UNIT_X, direction, mask);
 
     int zLen = Integer.MAX_VALUE;
     for (int offset = 0; offset < xLen; offset++) {
       int count =
-          equalBlockCountInDirection(block, location.add(offset, 0, 0), UNIT_Z, direction, mask);
+          equalBlockCountInDirection(
+              block, blockLocation.add(offset, 0, 0), UNIT_Z, direction, mask);
       if (count < zLen) zLen = count;
     }
 
@@ -176,7 +182,7 @@ public class Chunk {
       for (int zOffset = 0; zOffset < zLen; zOffset++) {
         int count =
             equalBlockCountInDirection(
-                block, location.add(xOffset, 0, zOffset), UNIT_Y, direction, mask);
+                block, blockLocation.add(xOffset, 0, zOffset), UNIT_Y, direction, mask);
         if (count < yLen) yLen = count;
       }
     }
@@ -184,7 +190,7 @@ public class Chunk {
     for (int i = 0; i < xLen; i++) {
       for (int k = 0; k < zLen; k++) {
         for (int j = 0; j < yLen; j++) {
-          mask[location.x + i][location.y + j][location.z + k] = true;
+          mask[blockLocation.x + i][blockLocation.y + j][blockLocation.z + k] = true;
         }
       }
     }
@@ -199,7 +205,7 @@ public class Chunk {
       Quaternion rotation,
       Block block,
       Vec3i direction,
-      Vec3i location,
+      Vec3i blockLocation,
       Vec3i length) {
     Vector3f lowerLeftRotation = rotation.mult(new Vector3f(-0.5f, -0.5f, -0.5f));
     Vector3f lowerRightRotation = rotation.mult(new Vector3f(0.5f, -0.5f, -0.5f));
@@ -211,7 +217,7 @@ public class Chunk {
     int index = meshData.vertices.size();
 
     Vector3f lengthVector3f = length.toVector3f();
-    Vector3f locationVector3f = location.toVector3f();
+    Vector3f locationVector3f = blockLocation.toVector3f();
 
     Collections.addAll(
         meshData.vertices,
@@ -256,8 +262,6 @@ public class Chunk {
       List<Integer> indexes,
       List<Float> normals,
       AssetManager assetManager) {
-    //    System.out.println("vertices.size() = " + vertices.size());
-
     Mesh mesh = new Mesh();
 
     Vector3f[] verticesArray = vertices.toArray(Vector3f[]::new);

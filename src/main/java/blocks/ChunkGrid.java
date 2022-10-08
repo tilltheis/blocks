@@ -6,20 +6,24 @@ import com.jme3.scene.Node;
 import com.simsilica.mathd.Vec3i;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 
-import java.lang.reflect.Array;
+import java.text.MessageFormat;
 import java.util.AbstractMap;
+import java.util.HashSet;
 import java.util.Map;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
+import java.util.Set;
+import java.util.concurrent.*;
 import java.util.function.Function;
 
+@Slf4j
 public class ChunkGrid {
 
   private final Vec3i gridSize;
   private final Vec3i chunkSize;
-  private Future<Chunk>[][][] grid;
+  private FutureChunkWithNode[][][] grid;
+  private final ExecutorService chunkMeshGenerationExecutorService;
+  private final ExecutorService chunkBlockGenerationExecutorService;
   private final Function<Vec3i, Block[][][]> createChunkBlocks;
   private final AssetManager assetManager;
 
@@ -29,7 +33,6 @@ public class ChunkGrid {
   private Vector3f centerWorldLocation;
   @Getter private final Node node;
 
-  private final ExecutorService executorService;
   private final ConcurrentLinkedQueue<Map.Entry<Integer, Chunk>> updateList =
       new ConcurrentLinkedQueue<>();
 
@@ -37,14 +40,16 @@ public class ChunkGrid {
       @NonNull Vec3i gridSize,
       @NonNull Vec3i chunkSize,
       @NonNull Vector3f centerWorldLocation,
-      ExecutorService executorService,
+      ExecutorService chunkBlockGenerationExecutorService,
+      ExecutorService chunkMeshGenerationExecutorService,
       @NonNull AssetManager assetManager,
       @NonNull Function<Vec3i, Block[][][]> createChunkBlocks) {
     this.gridSize = gridSize;
     this.chunkSize = chunkSize;
     this.createChunkBlocks = createChunkBlocks;
     this.centerWorldLocation = centerWorldLocation.clone();
-    this.executorService = executorService;
+    this.chunkBlockGenerationExecutorService = chunkBlockGenerationExecutorService;
+    this.chunkMeshGenerationExecutorService = chunkMeshGenerationExecutorService;
     this.assetManager = assetManager;
 
     this.centerWorldLocation.set(1, 0f);
@@ -56,8 +61,7 @@ public class ChunkGrid {
   }
 
   private void initGrid() {
-    grid =
-        (Future<Chunk>[][][]) Array.newInstance(Future.class, gridSize.x, gridSize.y, gridSize.z);
+    grid = new FutureChunkWithNode[gridSize.x][gridSize.y][gridSize.z];
     gridOffsetX = 0;
     gridOffsetZ = 0;
 
@@ -175,30 +179,96 @@ public class ChunkGrid {
     node.attachChildAt(new Node(), nodeIndex);
 
     if (grid[gridLocation.x][gridLocation.y][gridLocation.z] != null)
-      grid[gridLocation.x][gridLocation.y][gridLocation.z].cancel(true);
+      grid[gridLocation.x][gridLocation.y][gridLocation.z].cancel();
 
     grid[gridLocation.x][gridLocation.y][gridLocation.z] =
-        executorService.submit(
-            () -> {
-              try {
-                Chunk chunk =
-                    new Chunk(
-                        chunkLocation,
-                        chunkSize,
-                        generateChunkBlocks(chunkLocation),
-                        assetManager,
-                        this);
-                updateList.add(new AbstractMap.SimpleEntry<>(nodeIndex, chunk));
-                return chunk;
-              } catch (Throwable throwable) {
-                throwable.printStackTrace();
-                throw throwable;
-              }
-            });
+        new FutureChunkWithNode(
+            chunkBlockGenerationExecutorService.submit(
+                () -> {
+                  try {
+                    Chunk chunk =
+                        new Chunk(
+                            chunkLocation,
+                            chunkSize,
+                            generateChunkBlocks(chunkLocation),
+                            assetManager,
+                            this);
+
+                    grid[gridLocation.x][gridLocation.y][gridLocation.z].futureNode =
+                        chunkMeshGenerationExecutorService.submit(
+                            () -> {
+                              try {
+                                Node node = chunk.getNode();
+                                updateList.add(new AbstractMap.SimpleEntry<>(nodeIndex, chunk));
+                                return node;
+                              } catch (Throwable throwable) {
+                                throwable.printStackTrace();
+                                throw throwable;
+                              }
+                            });
+
+                    return chunk;
+                  } catch (Throwable throwable) {
+                    throwable.printStackTrace();
+                    throw throwable;
+                  }
+                }));
   }
 
   // maybe this is better made private and added as a function param to the Chunk constructor
-  public Block[][][] generateChunkBlocks(Vec3i chunkLocation) {
+  private Block[][][] generateChunkBlocks(Vec3i chunkLocation) {
     return createChunkBlocks.apply(chunkLocation);
+  }
+
+  public Block[][][] getChunkBlocks(Vec3i chunkLocation) {
+    Vec3i centerGridLocation = calculateCenterGridLocation(centerWorldLocation);
+    int gridX = (gridOffsetX + chunkLocation.x - centerGridLocation.x + gridSize.x) % gridSize.x;
+    int gridZ = (gridOffsetZ + chunkLocation.z - centerGridLocation.z + gridSize.z) % gridSize.z;
+
+    Block[][][] blocks = null;
+    try {
+      FutureChunkWithNode futureChunkWithNode = grid[gridX][chunkLocation.y][gridZ];
+      if (futureChunkWithNode == null) {
+        log.warn(
+            MessageFormat.format(
+                "getChunkBlocks({0}): grid[{1}][{2}][{3}] is not yet initialized",
+                chunkLocation, gridX, chunkLocation.y, gridZ));
+      } else {
+        blocks = futureChunkWithNode.futureChunk.get().getBlocks();
+      }
+    } catch (InterruptedException e) {
+      log.warn(
+          MessageFormat.format(
+              "getChunkBlocks({0}): grid[{1}][{2}][{3}] is interrupted",
+              chunkLocation, gridX, chunkLocation.y, gridZ));
+    } catch (ExecutionException e) {
+      // was already reported in the original thread
+    } catch (CancellationException e) {
+      log.warn(
+          MessageFormat.format(
+              "getChunkBlocks({0}): grid[{1}][{2}][{3}] is cancelled",
+              chunkLocation, gridX, chunkLocation.y, gridZ));
+    }
+
+    if (blocks == null) {
+      log.info(MessageFormat.format("getChunkBlocks({0}): generating chunk blocks", chunkLocation));
+      blocks = generateChunkBlocks(chunkLocation);
+    }
+
+    return blocks;
+  }
+
+  private static final class FutureChunkWithNode {
+    public Future<Chunk> futureChunk;
+    public Future<Node> futureNode = new CompletableFuture<>();
+
+    private FutureChunkWithNode(Future<Chunk> futureChunk) {
+      this.futureChunk = futureChunk;
+    }
+
+    public void cancel() {
+      futureChunk.cancel(true);
+      futureNode.cancel(true);
+    }
   }
 }
