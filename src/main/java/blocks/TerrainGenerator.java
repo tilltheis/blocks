@@ -22,7 +22,7 @@ public class TerrainGenerator {
     flatlandNoise = new Noise(4, 0, 1500, 3.5, 0, 0, new Random(seed));
     hillNoise = new Noise(4, 0, 500, 3.5, 0, 0, new Random(seed));
     oceanNoise = new Noise(4, 0, 1000, 3.5, 0, 0, new Random(seed));
-    treeNoise = new Noise(4, 0, 100, 3, 50, 0, new Random(seed));
+    treeNoise = new Noise(4, 0, 10, 4, 0, 0, new Random(seed));
   }
 
   // mu is percentage between x and y, must be in range (0, 1)
@@ -83,26 +83,16 @@ public class TerrainGenerator {
 
   private Optional<Flora> floraAt(int x, int z, TerrainType terrainType) {
     if (terrainType == TerrainType.FLATLAND) {
-      if (uncheckedHasTreeAt(x, z)) return Optional.of(Flora.TREE);
+      if (hasTreeAt(x, z)) return Optional.of(Flora.TREE);
     }
 
     return Optional.empty();
   }
 
-  public boolean hasTreeAt(int x, int z) {
-    return terrainHeightAt(x, z).terrainType == TerrainType.FLATLAND && uncheckedHasTreeAt(x, z);
-  }
-
-  private boolean uncheckedHasTreeAt(int x, int z) {
-    // group coordinates into FLora.TREE.size sized groups to
-    // cover full tree size blocks to allow cross chunk tree detection
-    int scaledX = x / Flora.TREE.size.x;
-    int scaledZ = z / Flora.TREE.size.z;
-
-    // scale coords to regulate value density w/o enforcing simplex patterns
-    float scale = 0.75f;
-
-    float treeValue = treeNoise.getValue((int) (scaledX * scale), (int) (scaledZ * scale));
-    return treeValue >= 0.5;
+  private boolean hasTreeAt(int x, int z) {
+    int scale = 1000;
+    float treeValue = treeNoise.getValue(x * scale, z * scale);
+    float scaledTreeValue = treeValue * treeValue * treeValue;
+    return scaledTreeValue >= 0.5;
   }
 }

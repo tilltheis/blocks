@@ -216,72 +216,44 @@ public class App extends SimpleApplication {
       }
     }
 
+    // create trees that spawn outside this chunk but reach into it
+    int outsideTreeRangeX = Flora.TREE.size.x / 2;
+    int outsideTreeRangeZ = Flora.TREE.size.z / 2;
+    for (int x = -outsideTreeRangeX; x < CHUNK_WIDTH + outsideTreeRangeX; x++) {
+      for (int z = -outsideTreeRangeZ; z < CHUNK_DEPTH + outsideTreeRangeZ; z++) {
+        Terrain terrain =
+            terrainGenerator.terrainAt(location.x * CHUNK_WIDTH + x, location.z * CHUNK_DEPTH + z);
+
+        if (terrain.flora().isPresent() && terrain.flora().get() == Flora.TREE) {
+          int scaledHeight = (int) ((terrain.height() + 1) / 2 * WORLD_HEIGHT);
+          int y = scaledHeight - (location.y * CHUNK_HEIGHT);
+          createTreeAt(x, y, z, blocks, location);
+        }
+
+        // inside of chunk has already been scanned
+        if (x >= 0 && x < CHUNK_WIDTH && z == -1) z = CHUNK_DEPTH - 1;
+      }
+    }
+
     return blocks;
   }
 
-  // x and z must be within the chunk bounds, must be inside the tree zone
-  // chunkLocalreeStartY may be outside the chunk bounds,
-  //   must be at the start of the tree zone in its chunk
-  private void createTreeAt(
-      int x, int chunkLocalTreeStartY, int z, Block[][][] blocks, Vec3i chunkLocation) {
+  private void createTreeAt(int x, int y, int z, Block[][][] blocks, Vec3i chunkLocation) {
     Vec3i size = Flora.TREE.size;
 
-    if (chunkLocalTreeStartY <= -size.y || chunkLocalTreeStartY >= CHUNK_HEIGHT) return;
+    if (y <= -size.y || y >= CHUNK_HEIGHT) return;
 
-    // scan towards lower x to find edge of tree zone
-    boolean reachedTreeZoneEndX = false;
-    int treeX;
-    for (treeX = 1; treeX <= size.x; treeX++) {
-      if (!terrainGenerator.hasTreeAt(
-          chunkLocation.x * CHUNK_WIDTH + x - treeX, chunkLocation.z * CHUNK_WIDTH + z)) {
-        reachedTreeZoneEndX = true;
-        break;
-      }
-    }
-    if (!reachedTreeZoneEndX) return;
-
-    // scan towards lower z to find edge of tree zone
-    boolean reachedTreeZoneEndZ = false;
-    int treeZ;
-    for (treeZ = 1; treeZ <= size.z; treeZ++) {
-      if (!terrainGenerator.hasTreeAt(
-          chunkLocation.x * CHUNK_WIDTH + x, chunkLocation.z * CHUNK_WIDTH + z - treeZ)) {
-        reachedTreeZoneEndZ = true;
-        break;
-      }
-    }
-    if (!reachedTreeZoneEndZ) return;
-
-    int treeStartX = x - treeX + 1;
-    int treeStartZ = z - treeZ + 1;
-
-    int centerX = treeStartX + size.x / 2;
-    int centerZ = treeStartZ + size.z / 2;
-    int globalCenterX = chunkLocation.x * CHUNK_WIDTH + centerX;
-    int globalCenterZ = chunkLocation.z * CHUNK_DEPTH + centerZ;
-    Terrain centerTerrain = terrainGenerator.terrainAt(globalCenterX, globalCenterZ);
-
-    if (centerTerrain.flora().isEmpty() || centerTerrain.flora().get() != Flora.TREE) return;
-
-    // the parameter can be wrong if it doesn't come from the center chunk
-    int treeStartY =
-        (int) ((centerTerrain.height() + 1) / 2 * WORLD_HEIGHT) - (chunkLocation.y * CHUNK_HEIGHT);
-
-    // neither x nor z are the tree zone start in this chunk
-    if (!(((treeStartX < 0 && x == 0) || (treeStartX >= 0 && treeStartX == x))
-        && ((treeStartZ < 0 && z == 0) || (treeStartZ >= 0 && treeStartZ == z)))) {
-      return;
-    }
+    int treeStartX = x - size.x / 2;
+    int treeStartY = y;
+    int treeStartZ = z - size.z / 2;
 
     int xOffset = Math.max(0, -treeStartX);
-    int zOffset = Math.max(0, -treeStartZ);
     int yOffset = Math.max(0, -treeStartY);
+    int zOffset = Math.max(0, -treeStartZ);
 
-    int y = treeStartY + yOffset;
-
-    int xLimit = Math.min(size.x, CHUNK_WIDTH - x);
-    int zLimit = Math.min(size.z, CHUNK_DEPTH - z);
-    int yLimit = Math.min(size.y, CHUNK_HEIGHT - y);
+    int xLimit = Math.min(size.x, CHUNK_WIDTH - treeStartX);
+    int yLimit = Math.min(size.y, CHUNK_HEIGHT - treeStartY);
+    int zLimit = Math.min(size.z, CHUNK_DEPTH - treeStartZ);
 
     for (int i = xOffset; i < xLimit; i++) {
       int chunkX = treeStartX + i;
