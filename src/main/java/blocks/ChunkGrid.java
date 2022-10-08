@@ -185,8 +185,9 @@ public class ChunkGrid {
                     new Chunk(
                         chunkLocation,
                         chunkSize,
-                        createChunkBlocks.apply(chunkLocation),
-                        assetManager);
+                        generateChunkBlocks(chunkLocation),
+                        assetManager,
+                        this);
                 updateList.add(new AbstractMap.SimpleEntry<>(nodeIndex, chunk));
                 return chunk;
               } catch (Throwable throwable) {
@@ -194,5 +195,10 @@ public class ChunkGrid {
                 throw throwable;
               }
             });
+  }
+
+  // maybe this is better made private and added as a function param to the Chunk constructor
+  public Block[][][] generateChunkBlocks(Vec3i chunkLocation) {
+    return createChunkBlocks.apply(chunkLocation);
   }
 }

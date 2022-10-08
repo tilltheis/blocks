@@ -45,17 +45,23 @@ public class Chunk {
   private static final Vector2f[] meshTextureCoordinates = {
     new Vector2f(0, 0), new Vector2f(1, 0), new Vector2f(0, 1), new Vector2f(1, 1)
   };
+  private final ChunkGrid chunkGrid;
+
+  private final Map<Vec3i, Block[][][]> adjacentChunkBlocks = new HashMap<>(4);
 
   public Chunk(
       @NonNull Vec3i location,
       @NonNull Vec3i size,
       @NonNull Block[][][] blocks,
-      @NonNull AssetManager assetManager) {
+      @NonNull AssetManager assetManager,
+      @NonNull ChunkGrid chunkGrid) {
     if (size.x < 1 || size.y < 1 || size.z < 1)
       throw new IllegalArgumentException("all size values must be > 0 but got " + size);
     if (blocks.length != size.x || blocks[0].length != size.y || blocks[0][0].length != size.z)
       throw new IllegalArgumentException(
           "blocks size must match chunk size for chunk at location " + location);
+
+    this.chunkGrid = chunkGrid;
 
     this.location = location;
 
@@ -90,16 +96,25 @@ public class Chunk {
     return length;
   }
 
-  private boolean isVisibleFrom(Block block, Vec3i location, Vec3i direction) {
-    int x = location.x + direction.x;
-    int y = location.y + direction.y;
-    int z = location.z + direction.z;
+  private boolean isVisibleFrom(Block block, Vec3i blockLocation, Vec3i direction) {
+    int x = blockLocation.x + direction.x;
+    int y = blockLocation.y + direction.y;
+    int z = blockLocation.z + direction.z;
     boolean isLocal = x >= 0 && y >= 0 && z >= 0 && x < size.x && y < size.y && z < size.z;
     if (isLocal) {
       Block otherBlock = getBlock(x, y, z);
       return otherBlock == null || (otherBlock.isTransparent() && !block.equals(otherBlock));
     } else {
-      return !block.isTransparent(); // TODO replace w/ cross-chunk check when needed
+      if (!block.isTransparent()) return true;
+      else if (block.type() == BlockType.WATER) return false;
+
+      // TODO cache/insert this in the chunk grid when better performance is needed
+      Block[][][] adjacentChunkBlocks =
+          this.adjacentChunkBlocks.computeIfAbsent(
+              location.add(direction), chunkGrid::generateChunkBlocks);
+      Block otherBlock =
+          adjacentChunkBlocks[(x + size.x) % size.x][(y + size.y) % size.y][(z + size.z) % size.z];
+      return otherBlock == null || (otherBlock.isTransparent() && !block.equals(otherBlock));
     }
   }
 
