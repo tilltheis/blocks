@@ -8,11 +8,8 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
-import java.text.MessageFormat;
 import java.util.AbstractMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.*;
 import java.util.function.Function;
 
@@ -215,43 +212,71 @@ public class ChunkGrid {
                 }));
   }
 
-  // maybe this is better made private and added as a function param to the Chunk constructor
   private Block[][][] generateChunkBlocks(Vec3i chunkLocation) {
     return createChunkBlocks.apply(chunkLocation);
   }
 
-  public Block[][][] getChunkBlocks(Vec3i chunkLocation) {
+  public synchronized Block[][][] getChunkBlocks(Vec3i chunkLocation) {
     Vec3i centerGridLocation = calculateCenterGridLocation(centerWorldLocation);
-    int gridX = (gridOffsetX + chunkLocation.x - centerGridLocation.x + gridSize.x) % gridSize.x;
-    int gridZ = (gridOffsetZ + chunkLocation.z - centerGridLocation.z + gridSize.z) % gridSize.z;
+    Vec3i lowerLeftGridLocation =
+        centerGridLocation.add(-gridSize.x / 2, -gridSize.y / 2, -gridSize.z / 2);
+    int gridX = (gridOffsetX + chunkLocation.x - lowerLeftGridLocation.x + gridSize.x) % gridSize.x;
+    int gridZ = (gridOffsetZ + chunkLocation.z - lowerLeftGridLocation.z + gridSize.z) % gridSize.z;
 
     Block[][][] blocks = null;
-    try {
-      FutureChunkWithNode futureChunkWithNode = grid[gridX][chunkLocation.y][gridZ];
-      if (futureChunkWithNode == null) {
+    if (chunkLocation.x < lowerLeftGridLocation.x
+        || chunkLocation.x >= lowerLeftGridLocation.x + gridSize.x
+        || chunkLocation.y < lowerLeftGridLocation.y
+        || chunkLocation.y >= lowerLeftGridLocation.y + gridSize.y
+        || chunkLocation.z < lowerLeftGridLocation.z
+        || chunkLocation.z >= lowerLeftGridLocation.z + gridSize.z) {
+      log.debug(
+          "getChunkBlocks({}): requested chunk location is out of grid bounds", chunkLocation);
+    } else {
+      try {
+        FutureChunkWithNode futureChunkWithNode = grid[gridX][chunkLocation.y][gridZ];
+        if (futureChunkWithNode == null) {
+          log.warn(
+              "getChunkBlocks({}): grid[{}][{}][{}] is not yet initialized",
+              chunkLocation,
+              gridX,
+              chunkLocation.y,
+              gridZ);
+        } else {
+          Chunk chunk = futureChunkWithNode.futureChunk.get();
+
+          if (chunk.getLocation().equals(chunkLocation)) {
+            blocks = chunk.getBlocks();
+          } else {
+            log.error(
+                "getChunkBlocks({}): found chunk with unexpected location {} (lower left grid location {}, center grid location {})",
+                chunkLocation,
+                lowerLeftGridLocation,
+                chunk.getLocation(),
+                centerGridLocation);
+          }
+        }
+      } catch (InterruptedException e) {
         log.warn(
-            MessageFormat.format(
-                "getChunkBlocks({0}): grid[{1}][{2}][{3}] is not yet initialized",
-                chunkLocation, gridX, chunkLocation.y, gridZ));
-      } else {
-        blocks = futureChunkWithNode.futureChunk.get().getBlocks();
+            "getChunkBlocks({}): grid[{}][{}][{}] is interrupted",
+            chunkLocation,
+            gridX,
+            chunkLocation.y,
+            gridZ);
+      } catch (ExecutionException e) {
+        // was already reported in the original thread
+      } catch (CancellationException e) {
+        log.warn(
+            "getChunkBlocks({}): grid[{}][{}][{}] is cancelled",
+            chunkLocation,
+            gridX,
+            chunkLocation.y,
+            gridZ);
       }
-    } catch (InterruptedException e) {
-      log.warn(
-          MessageFormat.format(
-              "getChunkBlocks({0}): grid[{1}][{2}][{3}] is interrupted",
-              chunkLocation, gridX, chunkLocation.y, gridZ));
-    } catch (ExecutionException e) {
-      // was already reported in the original thread
-    } catch (CancellationException e) {
-      log.warn(
-          MessageFormat.format(
-              "getChunkBlocks({0}): grid[{1}][{2}][{3}] is cancelled",
-              chunkLocation, gridX, chunkLocation.y, gridZ));
     }
 
     if (blocks == null) {
-      log.info(MessageFormat.format("getChunkBlocks({0}): generating chunk blocks", chunkLocation));
+      log.debug("getChunkBlocks({}): generating chunk blocks", chunkLocation);
       blocks = generateChunkBlocks(chunkLocation);
     }
 

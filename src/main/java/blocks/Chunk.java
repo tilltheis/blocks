@@ -14,6 +14,7 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.ToString;
+import lombok.extern.slf4j.Slf4j;
 
 import java.text.MessageFormat;
 import java.util.*;
@@ -21,6 +22,7 @@ import java.util.*;
 // TODO optimize https://0fps.net/2012/01/14/an-analysis-of-minecraft-like-engines/
 @EqualsAndHashCode
 @ToString(onlyExplicitlyIncluded = true)
+@Slf4j
 public class Chunk {
   @ToString.Include @Getter private final Vec3i location;
   @ToString.Include @Getter private final Vec3i size;
