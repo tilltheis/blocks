@@ -1,0 +1,18 @@
+// for debugging and shader feature development purposes
+MaterialDef Block {
+
+    MaterialParameters {
+        Texture2D DiffuseMap
+    }
+
+    Technique {
+        VertexShader GLSL310 GLSL300 GLSL100 GLSL150:   Block.vert
+        FragmentShader GLSL310 GLSL300 GLSL100 GLSL150: Block.frag
+
+        WorldParameters {
+            WorldViewProjectionMatrix
+            WorldMatrix
+        }
+    }
+
+}

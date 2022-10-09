@@ -1,11 +1,13 @@
 package blocks;
 
 import com.jme3.asset.AssetManager;
+import com.jme3.asset.TextureKey;
 import com.jme3.material.Material;
 import com.jme3.material.RenderState;
 import com.jme3.math.*;
 import com.jme3.renderer.queue.RenderQueue;
 import com.jme3.scene.*;
+import com.jme3.texture.Texture;
 import com.jme3.util.BufferUtils;
 import com.simsilica.mathd.Vec3i;
 import lombok.EqualsAndHashCode;
@@ -284,6 +286,14 @@ public class Chunk {
 
     if (block.type() == BlockType.WATER) {
       material = new Material(assetManager, "Water.j3md");
+    } else if (block.type() == BlockType.GRASS) {
+      material = new Material(assetManager, "BlockLighting.j3md");
+      Texture texture = assetManager.loadTexture(new TextureKey("Grass_diffuse.png", true));
+      material.setTexture("DiffuseMap", texture);
+    } else if (block.type() == BlockType.LEAF) {
+      material = new Material(assetManager, "BlockLighting.j3md");
+      Texture texture = assetManager.loadTexture(new TextureKey("Leaf_diffuse.png", true));
+      material.setTexture("DiffuseMap", texture);
     } else {
       material = new Material(assetManager, "Common/MatDefs/Light/Lighting.j3md");
       material.setBoolean("UseMaterialColors", true);
@@ -293,6 +303,7 @@ public class Chunk {
     }
 
     if (block.isTransparent()) {
+      material.setTransparent(true);
       material.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
       geometry.setQueueBucket(RenderQueue.Bucket.Transparent);
     }
