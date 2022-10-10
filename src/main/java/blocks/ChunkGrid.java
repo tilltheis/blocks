@@ -26,8 +26,8 @@ public class ChunkGrid {
 
   private int gridOffsetX;
   private int gridOffsetZ;
-  private final Vec3i centerGridLocation;
-  private Vector3f centerWorldLocation;
+  // in the lower left corner of the grid, relative to the grid offsets
+  private final Vec3i firstGridChunkLocation;
   @Getter private final Node node;
 
   private final ConcurrentLinkedQueue<Map.Entry<Integer, Chunk>> updateList =
@@ -44,14 +44,11 @@ public class ChunkGrid {
     this.gridSize = gridSize;
     this.chunkSize = chunkSize;
     this.createChunkBlocks = createChunkBlocks;
-    this.centerWorldLocation = centerWorldLocation.clone();
     this.chunkBlockGenerationExecutorService = chunkBlockGenerationExecutorService;
     this.chunkMeshGenerationExecutorService = chunkMeshGenerationExecutorService;
     this.assetManager = assetManager;
 
-    this.centerWorldLocation.set(1, 0f);
-
-    centerGridLocation = calculateCenterGridLocation(centerWorldLocation);
+    firstGridChunkLocation = calculateFirstGridChunkLocation(centerWorldLocation);
     node = new Node();
 
     initGrid();
@@ -62,8 +59,6 @@ public class ChunkGrid {
     gridOffsetX = 0;
     gridOffsetZ = 0;
 
-    Vec3i lowerLeftLocation = calculateLowerLeftGridLocation(centerWorldLocation);
-
     for (int x = 0; x < gridSize.x; x++) {
       for (int y = 0; y < gridSize.y; y++) {
         for (int z = 0; z < gridSize.z; z++) {
@@ -71,46 +66,32 @@ public class ChunkGrid {
           node.attachChild(new Node());
 
           Vec3i gridLocation = new Vec3i(x, y, z);
-          Vec3i chunkLocation = lowerLeftLocation.add(x, y, z);
+          Vec3i chunkLocation = firstGridChunkLocation.add(x, y, z);
           scheduleChunkGeneration(gridLocation, chunkLocation);
         }
       }
     }
   }
 
-  private Vec3i calculateCenterGridLocation(Vector3f camLocation) {
-    // floor because both (int)-0.9f and (int)+0.9f result in 0, effectively spanning 2 ints
+  private Vec3i calculateFirstGridChunkLocation(Vector3f camLocation) {
+    // use floor() because both (int)-0.9f and (int)+0.9f result in 0, effectively spanning 2 ints.
+    // floor() intermediate result to have fixed center that's not affected by the float subtrahend
     return new Vec3i(
-        (int) Math.floor(camLocation.x / chunkSize.x),
+        (int) Math.floor(Math.floor(camLocation.x / chunkSize.x) - gridSize.x / 2f),
         0,
-        (int) Math.floor((camLocation.z / chunkSize.z)));
-  }
-
-  private Vec3i calculateLowerLeftGridLocation(Vector3f camLocation) {
-    return new Vec3i(
-        (int) Math.floor(camLocation.x / chunkSize.x - gridSize.x / 2f),
-        0,
-        (int) Math.floor(camLocation.z / chunkSize.z - gridSize.z / 2f));
+        (int) Math.floor(Math.floor(camLocation.z / chunkSize.z) - gridSize.z / 2f));
   }
 
   public void centerAroundWorldLocation(Vector3f newCenterWorldLocation) {
-    Vec3i newCenterGridLocation = calculateCenterGridLocation(newCenterWorldLocation);
-    Vec3i newLowerLeftLocation = calculateLowerLeftGridLocation(newCenterWorldLocation);
-    Vec3i oldLowerLeftLocation = calculateLowerLeftGridLocation(centerWorldLocation);
-    centerWorldLocation = newCenterWorldLocation.clone();
-    centerWorldLocation.set(1, 0f);
+    Vec3i newFirstChunkLocation = calculateFirstGridChunkLocation(newCenterWorldLocation);
 
-    if (!newCenterGridLocation.equals(centerGridLocation)) {
-      // TODO the stepping functions don't properly work if multiple steps are required
-
-      while (newCenterGridLocation.x != centerGridLocation.x) {
-        stepTowardsNewCenterGridLocationX(
-            newCenterGridLocation, newLowerLeftLocation, oldLowerLeftLocation);
+    while (!newFirstChunkLocation.equals(firstGridChunkLocation)) {
+      if (newFirstChunkLocation.x != firstGridChunkLocation.x) {
+        stepTowardsNewCenterGridLocationX(newFirstChunkLocation.x > firstGridChunkLocation.x);
       }
 
-      while (newCenterGridLocation.z != centerGridLocation.z) {
-        stepTowardsNewCenterGridLocationZ(
-            newCenterGridLocation, newLowerLeftLocation, oldLowerLeftLocation);
+      if (newFirstChunkLocation.z != firstGridChunkLocation.z) {
+        stepTowardsNewCenterGridLocationZ(newFirstChunkLocation.z > firstGridChunkLocation.z);
       }
     }
   }
@@ -123,50 +104,41 @@ public class ChunkGrid {
     }
   }
 
-  private void stepTowardsNewCenterGridLocationX(
-      Vec3i newPlayerGridLocation, Vec3i newLowerLeftLocation, Vec3i oldLowerLeftLocation) {
-    boolean isPlus = newPlayerGridLocation.x > centerGridLocation.x;
+  private void stepTowardsNewCenterGridLocationX(boolean isPlus) {
     int gridX = isPlus ? gridOffsetX : (gridOffsetX + gridSize.x - 1) % gridSize.x;
-    int locationX = isPlus ? newLowerLeftLocation.x + gridSize.x - 1 : newLowerLeftLocation.x;
+    int chunkX = isPlus ? firstGridChunkLocation.x + gridSize.x : firstGridChunkLocation.x - 1;
 
     for (int y = 0; y < gridSize.y; y++) {
       for (int z = 0; z < gridSize.z; z++) {
         int gridZ = (gridOffsetZ + z) % gridSize.z;
         Vec3i gridLocation = new Vec3i(gridX, y, gridZ);
-        Vec3i chunkLocation = new Vec3i(locationX, y, oldLowerLeftLocation.z + z);
+        Vec3i chunkLocation = new Vec3i(chunkX, y, firstGridChunkLocation.z + z);
         scheduleChunkGeneration(gridLocation, chunkLocation);
       }
     }
 
     int gridOffsetDelta = isPlus ? 1 : gridSize.x - 1;
     gridOffsetX = (gridOffsetX + gridOffsetDelta) % gridSize.x;
-
-    centerGridLocation.x += isPlus ? 1 : -1;
-
-    newLowerLeftLocation.x += isPlus ? 1 : -1;
-    oldLowerLeftLocation.x += isPlus ? 1 : -1;
+    firstGridChunkLocation.x += isPlus ? 1 : -1;
   }
 
-  private void stepTowardsNewCenterGridLocationZ(
-      Vec3i newPlayerGridLocation, Vec3i newLowerLeftLocation, Vec3i oldLowerLeftLocation) {
-    boolean isPlus = newPlayerGridLocation.z > centerGridLocation.z;
+  private void stepTowardsNewCenterGridLocationZ(boolean isPlus) {
     int gridZ = isPlus ? gridOffsetZ : (gridOffsetZ + gridSize.z - 1) % gridSize.z;
-    int locationZ = isPlus ? newLowerLeftLocation.z + gridSize.z - 1 : newLowerLeftLocation.z;
+    int chunkZ = isPlus ? firstGridChunkLocation.z + gridSize.z : firstGridChunkLocation.z - 1;
 
     for (int x = 0; x < gridSize.x; x++) {
       int gridX = (gridOffsetX + x) % gridSize.x;
 
       for (int y = 0; y < gridSize.y; y++) {
         Vec3i gridLocation = new Vec3i(gridX, y, gridZ);
-        Vec3i chunkLocation = new Vec3i(oldLowerLeftLocation.x + x, y, locationZ);
+        Vec3i chunkLocation = new Vec3i(firstGridChunkLocation.x + x, y, chunkZ);
         scheduleChunkGeneration(gridLocation, chunkLocation);
       }
     }
 
     int gridOffsetDelta = isPlus ? 1 : gridSize.z - 1;
     gridOffsetZ = (gridOffsetZ + gridOffsetDelta) % gridSize.z;
-
-    centerGridLocation.z += isPlus ? 1 : -1;
+    firstGridChunkLocation.z += isPlus ? 1 : -1;
   }
 
   private void scheduleChunkGeneration(Vec3i gridLocation, Vec3i chunkLocation) {
@@ -175,6 +147,8 @@ public class ChunkGrid {
     node.detachChildAt(nodeIndex);
     node.attachChildAt(new Node(), nodeIndex);
 
+    // there would be race condition between null check, cancelling and scheduling if this method
+    // was called from different threads. but it's only ever called from the main rendering thread
     if (grid[gridLocation.x][gridLocation.y][gridLocation.z] != null)
       grid[gridLocation.x][gridLocation.y][gridLocation.z].cancel();
 
@@ -216,23 +190,23 @@ public class ChunkGrid {
     return createChunkBlocks.apply(chunkLocation);
   }
 
-  public synchronized Block[][][] getChunkBlocks(Vec3i chunkLocation) {
-    Vec3i centerGridLocation = calculateCenterGridLocation(centerWorldLocation);
-    Vec3i lowerLeftGridLocation =
-        centerGridLocation.add(-gridSize.x / 2, -gridSize.y / 2, -gridSize.z / 2);
-    int gridX = (gridOffsetX + chunkLocation.x - lowerLeftGridLocation.x + gridSize.x) % gridSize.x;
-    int gridZ = (gridOffsetZ + chunkLocation.z - lowerLeftGridLocation.z + gridSize.z) % gridSize.z;
-
+  public Block[][][] getChunkBlocks(Vec3i chunkLocation) {
     Block[][][] blocks = null;
-    if (chunkLocation.x < lowerLeftGridLocation.x
-        || chunkLocation.x >= lowerLeftGridLocation.x + gridSize.x
-        || chunkLocation.y < lowerLeftGridLocation.y
-        || chunkLocation.y >= lowerLeftGridLocation.y + gridSize.y
-        || chunkLocation.z < lowerLeftGridLocation.z
-        || chunkLocation.z >= lowerLeftGridLocation.z + gridSize.z) {
+
+    if (chunkLocation.x < firstGridChunkLocation.x
+        || chunkLocation.x >= firstGridChunkLocation.x + gridSize.x
+        || chunkLocation.y < firstGridChunkLocation.y
+        || chunkLocation.y >= firstGridChunkLocation.y + gridSize.y
+        || chunkLocation.z < firstGridChunkLocation.z
+        || chunkLocation.z >= firstGridChunkLocation.z + gridSize.z) {
       log.debug(
           "getChunkBlocks({}): requested chunk location is out of grid bounds", chunkLocation);
     } else {
+      int gridX =
+          (gridOffsetX + chunkLocation.x - firstGridChunkLocation.x + gridSize.x) % gridSize.x;
+      int gridZ =
+          (gridOffsetZ + chunkLocation.z - firstGridChunkLocation.z + gridSize.z) % gridSize.z;
+
       try {
         FutureChunkWithNode futureChunkWithNode = grid[gridX][chunkLocation.y][gridZ];
         if (futureChunkWithNode == null) {
@@ -249,11 +223,10 @@ public class ChunkGrid {
             blocks = chunk.getBlocks();
           } else {
             log.error(
-                "getChunkBlocks({}): found chunk with unexpected location {} (lower left grid location {}, center grid location {})",
+                "getChunkBlocks({}): found chunk with unexpected location {} (first grid chunk location {})",
                 chunkLocation,
-                lowerLeftGridLocation,
-                chunk.getLocation(),
-                centerGridLocation);
+                firstGridChunkLocation,
+                chunk.getLocation());
           }
         }
       } catch (InterruptedException e) {
