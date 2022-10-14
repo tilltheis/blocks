@@ -9,9 +9,10 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.AbstractMap;
-import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.*;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 
 /**
@@ -64,8 +65,9 @@ public class ChunkGrid {
   private final Vec3i firstGridChunkLocation;
   @Getter private final Node node;
 
-  private final ConcurrentLinkedQueue<Map.Entry<Integer, Chunk>> updateList =
-      new ConcurrentLinkedQueue<>();
+  private final ConcurrentLinkedQueue<Chunk> updateList = new ConcurrentLinkedQueue<>();
+
+  private final ReadWriteLock gridLock = new ReentrantReadWriteLock(true);
 
   public ChunkGrid(
       @NonNull Vec3i gridSize,
@@ -75,7 +77,7 @@ public class ChunkGrid {
       ExecutorService chunkMeshGenerationExecutorService,
       @NonNull AssetManager assetManager,
       @NonNull Function<Vec3i, Block[][][]> createChunkBlocks) {
-    this.gridSize = gridSize.add(2, 2, 2);
+    this.gridSize = gridSize.add(2, 0, 2);
     this.chunkSize = chunkSize;
     this.createChunkBlocks = createChunkBlocks;
     this.chunkBlockGenerationExecutorService = chunkBlockGenerationExecutorService;
@@ -93,26 +95,30 @@ public class ChunkGrid {
     gridOffsetX = 0;
     gridOffsetZ = 0;
 
-    for (int x = 0; x < gridSize.x; x++) {
-      for (int y = 0; y < gridSize.y; y++) {
-        for (int z = 0; z < gridSize.z; z++) {
-          // scheduleChunkGeneration() requires a filled node list
-          node.attachChild(new Node());
+    gridLock.writeLock().lock();
 
-          Vec3i gridLocation = new Vec3i(x, y, z);
-          if (gridLocation.x == 0
-              || gridLocation.x == gridSize.x - 1
-              || gridLocation.y == 0
-              || gridLocation.y == gridSize.y - 1
-              || gridLocation.z == 0
-              || gridLocation.z == gridSize.z - 1) {
-            clearNodeAt(gridLocation, "empty");
-          } else {
-            Vec3i chunkLocation = firstGridChunkLocation.add(x, y, z);
-            scheduleChunkGeneration(gridLocation, chunkLocation);
+    try {
+      for (int x = 0; x < gridSize.x; x++) {
+        for (int y = 0; y < gridSize.y; y++) {
+          for (int z = 0; z < gridSize.z; z++) {
+            // scheduleChunkGeneration() requires a filled node list
+            node.attachChild(new Node());
+
+            Vec3i gridLocation = new Vec3i(x, y, z);
+            if (gridLocation.x == 0
+                || gridLocation.x == gridSize.x - 1
+                || gridLocation.z == 0
+                || gridLocation.z == gridSize.z - 1) {
+              clearNodeAt(gridLocation, "empty");
+            } else {
+              Vec3i chunkLocation = firstGridChunkLocation.add(x, y, z);
+              scheduleChunkGeneration(gridLocation, chunkLocation);
+            }
           }
         }
       }
+    } finally {
+      gridLock.writeLock().unlock();
     }
 
     //    log.debug("initially\n" + debugView());
@@ -130,27 +136,59 @@ public class ChunkGrid {
   public void centerAroundWorldLocation(Vector3f newCenterWorldLocation) {
     Vec3i newFirstChunkLocation = calculateFirstGridChunkLocation(newCenterWorldLocation);
 
-    while (!newFirstChunkLocation.equals(firstGridChunkLocation)) {
-      //      log.debug("before\n" + debugView());
+    if (!newFirstChunkLocation.equals(firstGridChunkLocation)) {
+      gridLock.writeLock().lock();
 
-      if (newFirstChunkLocation.x != firstGridChunkLocation.x) {
-        stepTowardsNewCenterGridLocationX(newFirstChunkLocation.x > firstGridChunkLocation.x);
+      try {
+        while (!newFirstChunkLocation.equals(firstGridChunkLocation)) {
+          //          log.debug("before\n" + debugView());
+
+          if (newFirstChunkLocation.x != firstGridChunkLocation.x) {
+            stepTowardsNewCenterGridLocationX(newFirstChunkLocation.x > firstGridChunkLocation.x);
+          }
+
+          if (newFirstChunkLocation.z != firstGridChunkLocation.z) {
+            stepTowardsNewCenterGridLocationZ(newFirstChunkLocation.z > firstGridChunkLocation.z);
+          }
+
+          //          log.debug("after\n" + debugView());
+        }
+      } finally {
+        gridLock.writeLock().unlock();
       }
-
-      if (newFirstChunkLocation.z != firstGridChunkLocation.z) {
-        stepTowardsNewCenterGridLocationZ(newFirstChunkLocation.z > firstGridChunkLocation.z);
-      }
-
-      //      log.debug("after\n" + debugView());
     }
   }
 
+  long startedAppAt = 0;
+  long totalUpdateTime = 0;
+
   public void update() {
-    while (!updateList.isEmpty()) {
-      Map.Entry<Integer, Chunk> nodeIndexWithChunk = updateList.remove();
-      node.detachChildAt(nodeIndexWithChunk.getKey());
-      node.attachChildAt(nodeIndexWithChunk.getValue().getNode(), nodeIndexWithChunk.getKey());
+    long startedUpdateAt = System.currentTimeMillis();
+    if (startedAppAt == 0) startedAppAt = startedUpdateAt;
+    if (startedUpdateAt >= startedAppAt + 10000) {
+      log.info("During the last 10s {} ms were spent updating", totalUpdateTime);
+      startedAppAt = startedUpdateAt;
+      totalUpdateTime = 0;
     }
+
+    gridLock.writeLock().lock();
+    try {
+      for (int i = updateList.size(); i > 0; i--) {
+        Chunk chunk = updateList.remove();
+        Vec3i gridLocation = gridLocationForChunkLocation(chunk.getLocation());
+        int nodeIndex = nodeIndexForGridLocation(gridLocation);
+        node.detachChildAt(nodeIndex);
+        node.attachChildAt(chunk.getNode(), nodeIndex);
+      }
+
+      totalUpdateTime += System.currentTimeMillis() - startedUpdateAt;
+    } finally {
+      gridLock.writeLock().unlock();
+    }
+  }
+
+  private int nodeIndexForGridLocation(Vec3i gridLocation) {
+    return gridLocation.x * gridSize.y * gridSize.z + gridLocation.y * gridSize.z + gridLocation.z;
   }
 
   private FutureChunkWithNode gridChunkAt(int x, int y, int z) {
@@ -182,7 +220,7 @@ public class ChunkGrid {
 
         clearNodeAt(gridLocation.clone().set(0, clearX), "empty");
 
-        if (y > 0 && y < gridSize.y - 1 && z > 0 && z < gridSize.z - 1) {
+        if (z > 0 && z < gridSize.z - 1) {
           scheduleChunkGeneration(gridLocation, chunkLocation);
         }
       }
@@ -206,7 +244,7 @@ public class ChunkGrid {
 
         clearNodeAt(gridLocation.clone().set(2, clearZ), "empty");
 
-        if (x > 0 && x < gridSize.x - 1 && y > 0 && y < gridSize.y - 1) {
+        if (x > 0 && x < gridSize.x - 1) {
           scheduleChunkGeneration(gridLocation, chunkLocation);
         }
       }
@@ -232,118 +270,183 @@ public class ChunkGrid {
   private void scheduleChunkGeneration(Vec3i gridLocation, Vec3i chunkLocation) {
     clearNodeAt(gridLocation, "loading");
 
-    grid[gridLocation.x][gridLocation.y][gridLocation.z] =
-        new FutureChunkWithNode(
-            chunkBlockGenerationExecutorService.submit(
-                () -> {
-                  try {
-                    Chunk chunk =
-                        new Chunk(
-                            chunkLocation,
-                            chunkSize,
-                            generateChunkBlocks(chunkLocation),
-                            assetManager,
-                            this);
+    Optional<FutureChunkWithNode> optionalFutureChunkWithNode =
+        findChunk(gridLocation, chunkLocation);
 
-                    grid[gridLocation.x][gridLocation.y][gridLocation.z].futureNode =
-                        chunkMeshGenerationExecutorService.submit(
-                            () -> {
-                              try {
-                                Node node = chunk.getNode();
-                                int nodeIndex =
-                                    gridLocation.x * gridSize.y * gridSize.z
-                                        + gridLocation.y * gridSize.z
-                                        + gridLocation.z;
-                                updateList.add(new AbstractMap.SimpleEntry<>(nodeIndex, chunk));
-                                return node;
-                              } catch (Throwable throwable) {
-                                throwable.printStackTrace();
-                                throw throwable;
-                              }
-                            });
+    if (optionalFutureChunkWithNode.isPresent()) {
+      optionalFutureChunkWithNode.get().futureNode =
+          submitNodeGeneration(optionalFutureChunkWithNode.get().futureChunk);
+    } else {
+      final FutureChunkWithNode cell = new FutureChunkWithNode(chunkLocation);
+      cell.futureChunk = submitChunkAndNodeGeneration(chunkLocation, cell);
+      grid[gridLocation.x][gridLocation.y][gridLocation.z] = cell;
+    }
+  }
 
-                    return chunk;
-                  } catch (Throwable throwable) {
-                    throwable.printStackTrace();
-                    throw throwable;
-                  }
-                }));
+  private Optional<FutureChunkWithNode> findChunk(Vec3i gridLocation, Vec3i chunkLocation) {
+    FutureChunkWithNode futureChunkWithNode = grid[gridLocation.x][gridLocation.y][gridLocation.z];
+
+    if (futureChunkWithNode == null) return Optional.empty();
+
+    Vec3i foundChunkLocation = futureChunkWithNode.chunkLocation;
+
+    if (foundChunkLocation.equals(chunkLocation)) {
+      //      log.debug(
+      //          "findChunk({}, {}): found chunk in grid", gridLocation, chunkLocation);
+      return Optional.of(futureChunkWithNode);
+    }
+
+    if (Math.abs(foundChunkLocation.x - chunkLocation.x) % gridSize.x != 0
+        || foundChunkLocation.y != chunkLocation.y
+        || Math.abs(foundChunkLocation.z - chunkLocation.z) % gridSize.z != 0) {
+      log.error(
+          "findChunk({}, {}): found chunk with unexpected location {}",
+          gridLocation,
+          chunkLocation,
+          foundChunkLocation);
+    }
+
+    return Optional.empty();
+  }
+
+  private Future<Chunk> submitChunkGeneration(Vec3i chunkLocation) {
+    return submitChunkAndNodeGeneration(chunkLocation, null);
+  }
+
+  private Future<Chunk> submitChunkAndNodeGeneration(
+      Vec3i chunkLocation, FutureChunkWithNode cell) {
+    return chunkBlockGenerationExecutorService.submit(
+        () -> {
+          try {
+            Chunk chunk =
+                new Chunk(
+                    chunkLocation,
+                    chunkSize,
+                    generateChunkBlocks(chunkLocation),
+                    assetManager,
+                    this);
+
+            if (cell != null) {
+              cell.futureNode = submitNodeGeneration(CompletableFuture.completedFuture(chunk));
+            }
+
+            return chunk;
+          } catch (Throwable throwable) {
+            throwable.printStackTrace();
+            throw throwable;
+          }
+        });
+  }
+
+  private Future<Node> submitNodeGeneration(Future<Chunk> futureChunk) {
+    return chunkMeshGenerationExecutorService.submit(
+        () -> {
+          try {
+            Chunk chunk = futureChunk.get();
+            Node node = chunk.getNode(); // takes long
+            updateList.add(chunk);
+            return node;
+          } catch (CancellationException e) {
+            throw e;
+          } catch (Throwable throwable) {
+            throwable.printStackTrace();
+            throw throwable;
+          }
+        });
   }
 
   private Block[][][] generateChunkBlocks(Vec3i chunkLocation) {
     return createChunkBlocks.apply(chunkLocation);
   }
 
+  private Vec3i gridLocationForChunkLocation(Vec3i chunkLocation) {
+    return new Vec3i(
+        gridIndexX(gridOffsetX + chunkLocation.x - firstGridChunkLocation.x),
+        chunkLocation.y,
+        gridIndexZ(gridOffsetZ + chunkLocation.z - firstGridChunkLocation.z));
+  }
+
   public Block[][][] getChunkBlocks(Vec3i chunkLocation) {
     Block[][][] blocks = null;
 
-    if (chunkLocation.x < firstGridChunkLocation.x
-        || chunkLocation.x >= firstGridChunkLocation.x + gridSize.x
-        || chunkLocation.y < firstGridChunkLocation.y
-        || chunkLocation.y >= firstGridChunkLocation.y + gridSize.y
-        || chunkLocation.z < firstGridChunkLocation.z
-        || chunkLocation.z >= firstGridChunkLocation.z + gridSize.z) {
-      log.error(
-          "getChunkBlocks({}): requested chunk location is out of grid bounds", chunkLocation);
-    } else {
-      int gridX = gridIndexX(gridOffsetX + chunkLocation.x - firstGridChunkLocation.x);
-      int gridZ = gridIndexZ(gridOffsetZ + chunkLocation.z - firstGridChunkLocation.z);
+    gridLock.readLock().lock();
 
-      try {
-        FutureChunkWithNode futureChunkWithNode = grid[gridX][chunkLocation.y][gridZ];
-        if (futureChunkWithNode == null) {
-          log.warn(
-              "getChunkBlocks({}): grid[{}][{}][{}] is not yet initialized",
-              chunkLocation,
-              gridX,
-              chunkLocation.y,
-              gridZ);
-        } else {
-          Chunk chunk = futureChunkWithNode.futureChunk.get();
-
-          if (chunk.getLocation().equals(chunkLocation)) {
-            blocks = chunk.getBlocks();
-          } else {
-            log.error(
-                "getChunkBlocks({}): found chunk with unexpected location {} (first grid chunk location {})",
-                chunkLocation,
-                firstGridChunkLocation,
-                chunk.getLocation());
-          }
-        }
-      } catch (InterruptedException e) {
-        log.warn(
-            "getChunkBlocks({}): grid[{}][{}][{}] is interrupted",
-            chunkLocation,
-            gridX,
-            chunkLocation.y,
-            gridZ);
-      } catch (ExecutionException e) {
-        // was already reported in the original thread
-      } catch (CancellationException e) {
-        log.warn(
-            "getChunkBlocks({}): grid[{}][{}][{}] is cancelled",
-            chunkLocation,
-            gridX,
-            chunkLocation.y,
-            gridZ);
+    try {
+      if (chunkLocation.x < firstGridChunkLocation.x
+          || chunkLocation.x >= firstGridChunkLocation.x + gridSize.x
+          || chunkLocation.y < firstGridChunkLocation.y
+          || chunkLocation.y >= firstGridChunkLocation.y + gridSize.y
+          || chunkLocation.z < firstGridChunkLocation.z
+          || chunkLocation.z >= firstGridChunkLocation.z + gridSize.z) {
+        log.error(
+            "getChunkBlocks({}): requested chunk location is out of grid bounds", chunkLocation);
+        return generateChunkBlocks(chunkLocation);
       }
-    }
 
-    if (blocks == null) {
-      log.debug("getChunkBlocks({}): generating chunk blocks", chunkLocation);
-      blocks = generateChunkBlocks(chunkLocation);
+      Vec3i gridLocation = gridLocationForChunkLocation(chunkLocation);
+      Optional<FutureChunkWithNode> optionalCell = findChunk(gridLocation, chunkLocation);
+
+      if (optionalCell.isPresent()) {
+        FutureChunkWithNode cell = optionalCell.get();
+
+        try {
+          Chunk foundChunk = cell.futureChunk.get();
+          blocks = foundChunk.getBlocks();
+        } catch (InterruptedException e) {
+          log.warn(
+              "getChunkBlocks({}): grid[{}][{}][{}] is interrupted",
+              chunkLocation,
+              gridLocation.x,
+              gridLocation.y,
+              gridLocation.z);
+        } catch (ExecutionException e) {
+          // was already reported in the original thread
+        } catch (CancellationException e) {
+          log.warn(
+              "getChunkBlocks({}): grid[{}][{}][{}] is cancelled",
+              chunkLocation,
+              gridLocation.x,
+              gridLocation.y,
+              gridLocation.z);
+        }
+      }
+
+      if (blocks == null) {
+        //        log.debug("getChunkBlocks({}): generating chunk blocks", chunkLocation);
+
+        FutureChunkWithNode cell = grid[gridLocation.x][gridLocation.y][gridLocation.z];
+        if (cell != null) {
+          cell.cancel();
+        } else {
+          cell = new FutureChunkWithNode(chunkLocation);
+        }
+
+        cell.chunkLocation = chunkLocation;
+        CompletableFuture<Chunk> futureChunk = new CompletableFuture<>();
+        cell.futureChunk = futureChunk;
+
+        blocks = generateChunkBlocks(chunkLocation);
+
+        Chunk createdChunk = new Chunk(chunkLocation, chunkSize, blocks, assetManager, this);
+        futureChunk.complete(createdChunk);
+      }
+    } finally {
+      gridLock.readLock().unlock();
     }
 
     return blocks;
   }
 
   private static final class FutureChunkWithNode {
+    // must be initialized before inserting it into the grid
+    // it's not part of the constructor because of the way the futureChunk
+    // has to be constructed
+    public Vec3i chunkLocation;
     public Future<Chunk> futureChunk;
     public Future<Node> futureNode = new CompletableFuture<>();
 
-    private FutureChunkWithNode(Future<Chunk> futureChunk) {
-      this.futureChunk = futureChunk;
+    public FutureChunkWithNode(Vec3i chunkLocation) {
+      this.chunkLocation = chunkLocation;
     }
 
     public void cancel() {
@@ -366,7 +469,7 @@ public class ChunkGrid {
 
     sb.append('\n');
 
-    int y = 1;
+    int y = 0;
 
     for (int z = gridSize.z - 1; z >= 0; z--) {
       // grid
