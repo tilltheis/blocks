@@ -76,7 +76,11 @@ public class Chunk {
     this.assetManager = assetManager;
   }
 
-  public Node getNode() {
+  public boolean isNodeCalculationDone() {
+    return node != null;
+  }
+
+  public synchronized Node getNode() {
     if (node == null) {
       node = new Node();
       node.setLocalTranslation(
