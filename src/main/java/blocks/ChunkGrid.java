@@ -1,6 +1,5 @@
 package blocks;
 
-import com.github.benmanes.caffeine.cache.AsyncLoadingCache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.jme3.asset.AssetManager;
@@ -10,13 +9,9 @@ import com.jme3.scene.Spatial;
 import com.simsilica.mathd.Vec3i;
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.Optional;
 import java.util.concurrent.*;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 
 /**
@@ -249,8 +244,8 @@ public class ChunkGrid {
         gridIndexZ(gridOffsetZ + chunkLocation.z - firstGridChunkLocation.z));
   }
 
-  public Block[][][] getChunkBlocks(Vec3i chunkLocation) {
-    return cachedChunks.get(chunkLocation).getBlocks();
+  public Chunk getChunk(Vec3i chunkLocation) {
+    return cachedChunks.get(chunkLocation);
   }
 
   private String debugView() {

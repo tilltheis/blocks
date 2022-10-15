@@ -53,8 +53,6 @@ public class Chunk {
 
   private final AssetManager assetManager;
 
-  private final Map<Vec3i, Block[][][]> adjacentChunkBlockCache = new HashMap<>(4);
-
   public Chunk(
       @NonNull Vec3i location,
       @NonNull Vec3i size,
@@ -125,11 +123,9 @@ public class Chunk {
       if (!block.isTransparent()) return true;
       if (block.type() == BlockType.WATER) return false;
 
-      Block[][][] adjacentChunkBlocks =
-          adjacentChunkBlockCache.computeIfAbsent(
-              location.add(direction), chunkGrid::getChunkBlocks);
+      Chunk otherChunk = chunkGrid.getChunk(location.add(direction));
       Block otherBlock =
-          adjacentChunkBlocks[(x + size.x) % size.x][(y + size.y) % size.y][(z + size.z) % size.z];
+          otherChunk.blocks[(x + size.x) % size.x][(y + size.y) % size.y][(z + size.z) % size.z];
       return otherBlock == null || (otherBlock.isTransparent() && !block.equals(otherBlock));
     }
   }
