@@ -8,6 +8,7 @@
 
 // MY CHANGE
 varying vec4 worldPos;
+uniform vec4 m_Overlay;
 
 // fog - jayfella
 #ifdef USE_FOG
@@ -91,6 +92,14 @@ uniform ENVMAP m_EnvMap;
 #endif
 #endif
 
+// MY CHANGE
+float overlay(float baseColor, float overlayColor) {
+    return baseColor < 0.5 ? 2 * baseColor * overlayColor : 1 - 2 * (1 - baseColor) * (1 - overlayColor);
+}
+vec3 overlay(vec3 baseColor, vec3 overlayColor) {
+    return vec3(overlay(baseColor.r, overlayColor.r), overlay(baseColor.g, overlayColor.g), overlay(baseColor.b, overlayColor.b));
+}
+
 void main(){
     // MY CHANGE
     // i also replaced all occurences of `texCoord` with `tiledTexCoord`
@@ -141,6 +150,10 @@ void main(){
 
     #ifdef DIFFUSEMAP
     vec4 diffuseColor = texture2D(m_DiffuseMap, newTexCoord);
+
+    // MY CHANGE
+    diffuseColor = vec4(overlay(diffuseColor.rgb, m_Overlay.rgb), m_Overlay.a);
+
     #else
     vec4 diffuseColor = vec4(1.0);
     #endif

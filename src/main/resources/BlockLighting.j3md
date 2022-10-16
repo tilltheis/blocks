@@ -17,6 +17,9 @@ MaterialDef Phong Lighting {
         // Use vertex color as an additional diffuse color.
         Boolean UseVertexColor
 
+        // MY CHANGE
+        Color Overlay
+
         // Ambient color
         Color Ambient
 

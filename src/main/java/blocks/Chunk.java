@@ -292,20 +292,12 @@ public class Chunk {
 
     if (block.type() == BlockType.WATER) {
       material = new Material(assetManager, "Water.j3md");
-    } else if (block.type() == BlockType.GRASS) {
-      material = new Material(assetManager, "BlockLighting.j3md");
-      Texture texture = assetManager.loadTexture(new TextureKey("Grass_diffuse.png", true));
-      material.setTexture("DiffuseMap", texture);
-    } else if (block.type() == BlockType.LEAF) {
-      material = new Material(assetManager, "BlockLighting.j3md");
-      Texture texture = assetManager.loadTexture(new TextureKey("Leaf_diffuse.png", true));
-      material.setTexture("DiffuseMap", texture);
     } else {
-      material = new Material(assetManager, "Common/MatDefs/Light/Lighting.j3md");
-      material.setBoolean("UseMaterialColors", true);
+      material = new Material(assetManager, "BlockLighting.j3md");
+      Texture texture = assetManager.loadTexture(new TextureKey("tile.png", true));
+      material.setTexture("DiffuseMap", texture);
       ColorRGBA color = block.type().color.mult(block.brightness());
-      material.setColor("Ambient", color);
-      material.setColor("Diffuse", color);
+      material.setColor("Overlay", color);
     }
 
     if (block.isTransparent()) {
