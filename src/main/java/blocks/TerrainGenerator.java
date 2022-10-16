@@ -93,6 +93,6 @@ public class TerrainGenerator {
     int scale = 1000;
     float treeValue = treeNoise.getValue(x * scale, z * scale);
     float scaledTreeValue = treeValue * treeValue * treeValue;
-    return scaledTreeValue >= 0.5;
+    return scaledTreeValue >= 0.7;
   }
 }
