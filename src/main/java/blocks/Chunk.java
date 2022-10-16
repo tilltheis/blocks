@@ -296,8 +296,7 @@ public class Chunk {
       material = new Material(assetManager, "BlockLighting.j3md");
       Texture texture = assetManager.loadTexture(new TextureKey("tile.png", true));
       material.setTexture("DiffuseMap", texture);
-      ColorRGBA color = block.type().color.mult(block.brightness());
-      material.setColor("Overlay", color);
+      material.setColor("Overlay", block.color());
     }
 
     if (block.isTransparent()) {

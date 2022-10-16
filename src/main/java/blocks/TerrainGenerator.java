@@ -13,9 +13,11 @@ public class TerrainGenerator {
 
   private final Noise treeNoise;
 
+  private final Noise heatNoise;
+
   public static final float LAND_LEVEL = -0.2f;
 
-  private record TerrainHeight(TerrainType terrainType, float height) {}
+  private record TerrainHeight(TerrainType terrainType, float height, Temperature temperature) {}
 
   public TerrainGenerator(long seed) {
     mountainNoise = new Noise(4, 0, 1500, 4.1, -4, 0, new Random(seed));
@@ -23,6 +25,7 @@ public class TerrainGenerator {
     hillNoise = new Noise(4, 0, 500, 3.5, 0, 0, new Random(seed));
     oceanNoise = new Noise(4, 0, 1000, 3.5, 0, 0, new Random(seed));
     treeNoise = new Noise(4, 0, 10, 4, 0, 0, new Random(seed));
+    heatNoise = new Noise(2, 0, 3000, 2, 0, 0, new Random(seed));
   }
 
   // mu is percentage between x and y, must be in range (0, 1)
@@ -36,11 +39,13 @@ public class TerrainGenerator {
     float flatlandValue = flatlandNoise.getValue(x, z);
     float hillValue = hillNoise.getValue(x, z);
     float oceanValue = oceanNoise.getValue(x, z);
+    float heatValue = heatNoise.getValue(x, z);
 
     float scaledMountainValue = mountainValue > 0 ? mountainValue * mountainValue : mountainValue;
     float scaledFlatlandValue = flatlandValue * 0.4f;
     float scaledHillValue = hillValue - 0.5f;
     float scaledOceanValue = oceanValue * 1;
+    float scaledHeatNoise = heatValue * heatValue * Math.signum(heatValue);
 
     TerrainType terrainType = TerrainType.FLATLAND;
 
@@ -72,13 +77,20 @@ public class TerrainGenerator {
       terrainType = TerrainType.OCEAN;
     }
 
-    return new TerrainHeight(terrainType, interpolatedValue);
+    float temperatureFalloff = 0.5f;
+    return new TerrainHeight(
+        terrainType,
+        interpolatedValue,
+        scaledHeatNoise < -temperatureFalloff
+            ? Temperature.COLD
+            : (heatValue <= 1 - temperatureFalloff ? Temperature.NORMAL : Temperature.HOT));
   }
 
   public Terrain terrainAt(int x, int z) {
     TerrainHeight terrainHeight = terrainHeightAt(x, z);
     Optional<Flora> flora = floraAt(x, z, terrainHeight.terrainType);
-    return new Terrain(terrainHeight.terrainType, terrainHeight.height, flora);
+    return new Terrain(
+        terrainHeight.terrainType, terrainHeight.height, terrainHeight.temperature, flora);
   }
 
   private Optional<Flora> floraAt(int x, int z, TerrainType terrainType) {

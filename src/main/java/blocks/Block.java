@@ -1,3 +1,5 @@
 package blocks;
 
-public record Block(BlockType type, float brightness, boolean isTransparent) {}
+import com.jme3.math.ColorRGBA;
+
+public record Block(BlockType type, ColorRGBA color, boolean isTransparent) {}

@@ -174,15 +174,31 @@ public class App extends SimpleApplication {
     guiNode.attachChild(crosshair);
   }
 
-  private static final Block dirtBlock = new Block(BlockType.DIRT, 1f, false);
-  private static final Block rockBlock = new Block(BlockType.ROCK, 1f, false);
-  private static final Block waterBlock = new Block(BlockType.WATER, 1f, true);
-  private static final Block woodBlock = new Block(BlockType.WOOD, 1f, false);
-  private static final Block leafBlock = new Block(BlockType.LEAF, 0.7f, true);
-  private static final Block[] shadedGrassBlocks =
-      IntStream.rangeClosed(1, 10)
-          .mapToObj(i -> new Block(BlockType.GRASS, 1f / i, false))
-          .toArray(Block[]::new);
+  private static Temperature[] temperatures = Temperature.values();
+
+  /**
+   * @return Blocks, colored for all temperatures, indexed by temperature ordinals
+   */
+  private static Block[] createTemperaturedBlocks(BlockType blockType) {
+    Block[] blocks = new Block[temperatures.length];
+    for (Temperature temperature : temperatures) {
+      ColorRGBA color =
+          switch (temperature) {
+            case COLD -> blockType.color.clone().interpolateLocal(ColorRGBA.White, 0.5f);
+            case NORMAL -> blockType.color;
+            case HOT -> blockType.color.clone().interpolateLocal(ColorRGBA.Red, 0.2f);
+          };
+      blocks[temperature.ordinal()] = new Block(blockType, color, blockType.color.a < 1);
+    }
+    return blocks;
+  }
+
+  private static final Block[] dirtBlocks = createTemperaturedBlocks(BlockType.DIRT);
+  private static final Block[] rockBlocks = createTemperaturedBlocks(BlockType.ROCK);
+  private static final Block waterBlock = new Block(BlockType.WATER, BlockType.WATER.color, true);
+  private static final Block[] woodBlocks = createTemperaturedBlocks(BlockType.WOOD);
+  private static final Block[] leafBlocks = createTemperaturedBlocks(BlockType.LEAF);
+  private static final Block[] grassBlocks = createTemperaturedBlocks(BlockType.GRASS);
 
   private Block[][][] createBlocks(Vec3i location) {
     Block[][][] blocks = new Block[CHUNK_WIDTH][CHUNK_HEIGHT][CHUNK_DEPTH];
@@ -196,14 +212,15 @@ public class App extends SimpleApplication {
 
         for (int y = 0; y < CHUNK_HEIGHT && y <= scaledHeight - (location.y * CHUNK_HEIGHT); y++) {
           Block block;
-          if (location.y * CHUNK_HEIGHT + y < scaledHeight) block = dirtBlock;
+          if (location.y * CHUNK_HEIGHT + y < scaledHeight) block = dirtBlocks[1];
           else {
             block =
                 switch (terrain.terrainType()) {
-                  case MOUNTAIN -> rockBlock;
-                  case HILL -> dirtBlock;
-                  case FLATLAND -> shadedGrassBlocks[(int) ((height + 1) / 2 * 10)];
-                  case OCEAN -> dirtBlock;
+                  case MOUNTAIN -> rockBlocks[terrain.temperature().ordinal()];
+                  case HILL -> dirtBlocks[terrain.temperature().ordinal()];
+                  case FLATLAND -> grassBlocks[terrain.temperature().ordinal()];
+                  case OCEAN -> dirtBlocks[
+                      terrain.temperature().ordinal()]; // will be overridden below
                 };
           }
           blocks[x][y][z] = block;
@@ -218,7 +235,13 @@ public class App extends SimpleApplication {
         if (terrain.flora().isPresent()) {
           int y = scaledHeight - (location.y * CHUNK_HEIGHT);
           switch (terrain.flora().get()) {
-            case TREE -> createTreeAt(x, y, z, blocks, location);
+            case TREE -> createTreeAt(
+                x,
+                y,
+                z,
+                blocks,
+                woodBlocks[terrain.temperature().ordinal()],
+                leafBlocks[terrain.temperature().ordinal()]);
           }
         }
       }
@@ -235,7 +258,13 @@ public class App extends SimpleApplication {
         if (terrain.flora().isPresent() && terrain.flora().get() == Flora.TREE) {
           int scaledHeight = (int) ((terrain.height() + 1) / 2 * WORLD_HEIGHT);
           int y = scaledHeight - (location.y * CHUNK_HEIGHT);
-          createTreeAt(x, y, z, blocks, location);
+          createTreeAt(
+              x,
+              y,
+              z,
+              blocks,
+              woodBlocks[terrain.temperature().ordinal()],
+              leafBlocks[terrain.temperature().ordinal()]);
         }
 
         // inside of chunk has already been scanned
@@ -246,7 +275,8 @@ public class App extends SimpleApplication {
     return blocks;
   }
 
-  private void createTreeAt(int x, int y, int z, Block[][][] blocks, Vec3i chunkLocation) {
+  private void createTreeAt(
+      int x, int y, int z, Block[][][] blocks, Block woodBlock, Block leafBlock) {
     Vec3i size = Flora.TREE.size;
 
     if (y <= -size.y || y >= CHUNK_HEIGHT) return;
