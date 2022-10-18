@@ -68,6 +68,10 @@ public class BlockMaterial {
       material.setParam("OverlayGradient", VarType.Vector4Array, gradient);
       material.setInt("OverlayGradientSteps", gradient.length);
 
+      if (blockType == BlockType.WATER) {
+        material.setBoolean("AnimateAsWater", true);
+      }
+
       if (gradient[0].w < 1f) {
         material.setTransparent(true);
         material.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);

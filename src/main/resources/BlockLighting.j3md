@@ -22,6 +22,7 @@ MaterialDef Phong Lighting {
         Color Overlay
         Vector4Array OverlayGradient // must have exactly OverlayGradientSteps values
         Int OverlayGradientSteps
+        Boolean AnimateAsWater
 
         // Ambient color
         Color Ambient
@@ -196,6 +197,9 @@ MaterialDef Phong Lighting {
         FragmentShader GLSL310 GLSL300 GLSL100 GLSL150: BlockLighting.frag
 
         WorldParameters {
+            // MY CHANGE
+            Time
+
             WorldViewProjectionMatrix
             NormalMatrix
             WorldViewMatrix
@@ -209,6 +213,7 @@ MaterialDef Phong Lighting {
             // MY CHANGE
             OVERLAY_GRADIENT : OverlayGradient
             OVERLAY_GRADIENT_STEPS : OverlayGradientSteps
+            ANIMATE_AS_WATER : AnimateAsWater
 
             VERTEX_COLOR : UseVertexColor
             VERTEX_LIGHTING : VertexLighting

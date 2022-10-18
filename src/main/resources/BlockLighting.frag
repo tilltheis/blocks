@@ -13,6 +13,9 @@ uniform vec4[OVERLAY_GRADIENT_STEPS] m_OverlayGradient;
 #else
 uniform vec4 m_Overlay;
 #endif
+#ifdef ANIMATE_AS_WATER
+uniform float g_Time;
+#endif
 
 // fog - jayfella
 #ifdef USE_FOG
@@ -147,6 +150,14 @@ void main(){
     // MY CHANGE
     #ifdef OVERLAY_GRADIENT
     float grayscaleValue = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+    #ifdef ANIMATE_AS_WATER
+    // rotate the grayscale value of the light pixels over time
+    if (grayscaleValue >= 0.5){
+        grayscaleValue += mod(g_Time/1.5, 1);
+        if (grayscaleValue > 1) grayscaleValue = 2 - grayscaleValue;
+        if (grayscaleValue < 0.5) grayscaleValue = 1 - grayscaleValue;
+    }
+        #endif
     int gradientColorIndex = int(grayscaleValue * (OVERLAY_GRADIENT_STEPS - 1));
     vec4 gradientColor1 = m_OverlayGradient[gradientColorIndex];
     vec4 gradientColor2 = gradientColorIndex == (OVERLAY_GRADIENT_STEPS - 1) ? gradientColor1 : m_OverlayGradient[gradientColorIndex + 1];
