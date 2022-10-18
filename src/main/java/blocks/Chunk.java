@@ -1,13 +1,11 @@
 package blocks;
 
-import com.jme3.asset.AssetManager;
-import com.jme3.asset.TextureKey;
-import com.jme3.material.Material;
-import com.jme3.material.RenderState;
-import com.jme3.math.*;
+import com.jme3.math.FastMath;
+import com.jme3.math.Quaternion;
+import com.jme3.math.Vector2f;
+import com.jme3.math.Vector3f;
 import com.jme3.renderer.queue.RenderQueue;
 import com.jme3.scene.*;
-import com.jme3.texture.Texture;
 import com.jme3.util.BufferUtils;
 import com.simsilica.mathd.Vec3i;
 import lombok.EqualsAndHashCode;
@@ -51,13 +49,13 @@ public class Chunk {
   };
   private final ChunkGrid chunkGrid;
 
-  private final AssetManager assetManager;
+  private final BlockMaterial blockMaterial;
 
   public Chunk(
       @NonNull Vec3i location,
       @NonNull Vec3i size,
       @NonNull Block[][][] blocks,
-      @NonNull AssetManager assetManager,
+      @NonNull BlockMaterial blockMaterial,
       @NonNull ChunkGrid chunkGrid) {
     if (size.x < 1 || size.y < 1 || size.z < 1)
       throw new IllegalArgumentException("all size values must be > 0 but got " + size);
@@ -71,7 +69,7 @@ public class Chunk {
 
     this.size = size;
     this.blocks = blocks;
-    this.assetManager = assetManager;
+    this.blockMaterial = blockMaterial;
   }
 
   public boolean isNodeCalculationDone() {
@@ -83,7 +81,7 @@ public class Chunk {
       node = new Node();
       node.setLocalTranslation(
           this.location.x * size.x, this.location.y * size.y, this.location.z * size.z);
-      if (node.getChildren().isEmpty()) initNode(assetManager);
+      if (node.getChildren().isEmpty()) initNode();
     }
 
     return node;
@@ -130,7 +128,7 @@ public class Chunk {
     }
   }
 
-  private void initNode(AssetManager assetManager) {
+  private void initNode() {
     Map<Block, MeshData> blockToMeshData = new HashMap<>();
     Vec3i inMeshSize = new Vec3i();
     Vec3i blockLocation = new Vec3i();
@@ -167,8 +165,7 @@ public class Chunk {
               entry.getValue().vertices,
               entry.getValue().textureCoordinates,
               entry.getValue().indexes,
-              entry.getValue().normals,
-              assetManager);
+              entry.getValue().normals);
       this.node.attachChild(mesh);
     }
   }
@@ -268,8 +265,7 @@ public class Chunk {
       List<Vector3f> vertices,
       List<Vector2f> textureCoordinates,
       List<Integer> indexes,
-      List<Float> normals,
-      AssetManager assetManager) {
+      List<Float> normals) {
     Mesh mesh = new Mesh();
 
     Vector3f[] verticesArray = vertices.toArray(Vector3f[]::new);
@@ -287,25 +283,10 @@ public class Chunk {
 
     String name = MessageFormat.format("block={0} location={1} size={2}", block, location, size);
     Geometry geometry = new Geometry(name, mesh);
-
-    Material material;
-
-    if (block.type() == BlockType.WATER) {
-      material = new Material(assetManager, "Water.j3md");
-    } else {
-      material = new Material(assetManager, "BlockLighting.j3md");
-      Texture texture = assetManager.loadTexture(new TextureKey("tile.png", true));
-      material.setTexture("DiffuseMap", texture);
-      material.setColor("Overlay", block.color());
-    }
-
+    geometry.setMaterial(blockMaterial.forBlock(block));
     if (block.isTransparent()) {
-      material.setTransparent(true);
-      material.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
       geometry.setQueueBucket(RenderQueue.Bucket.Transparent);
     }
-
-    geometry.setMaterial(material);
 
     return geometry;
   }

@@ -7,7 +7,7 @@ public enum BlockType {
   GRASS(ColorRGBA.Green),
   LEAF(ColorRGBA.Green.clone().mult(0.7f)),
   ROCK(ColorRGBA.DarkGray),
-  WATER(ColorRGBA.Blue.clone().setAlpha(0.8f)),
+  WATER(new ColorRGBA(0, 0.1f, 1, 0.9f)),
   WOOD(ColorRGBA.Brown);
 
   public final ColorRGBA color;

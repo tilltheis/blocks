@@ -19,7 +19,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.IntStream;
 
 @Slf4j
 public class App extends SimpleApplication {
@@ -157,7 +156,7 @@ public class App extends SimpleApplication {
             cam.getLocation(),
             chunkBlockGenerationExecutorService,
             chunkMeshGenerationExecutorService,
-            assetManager,
+            new BlockMaterial(assetManager),
             this::createBlocks);
     rootNode.attachChild(chunkGrid.getNode());
   }
@@ -195,7 +194,7 @@ public class App extends SimpleApplication {
 
   private static final Block[] dirtBlocks = createTemperaturedBlocks(BlockType.DIRT);
   private static final Block[] rockBlocks = createTemperaturedBlocks(BlockType.ROCK);
-  private static final Block waterBlock = new Block(BlockType.WATER, BlockType.WATER.color, true);
+  private static final Block[] waterBlocks = createTemperaturedBlocks(BlockType.WATER);
   private static final Block[] woodBlocks = createTemperaturedBlocks(BlockType.WOOD);
   private static final Block[] leafBlocks = createTemperaturedBlocks(BlockType.LEAF);
   private static final Block[] grassBlocks = createTemperaturedBlocks(BlockType.GRASS);
@@ -229,7 +228,8 @@ public class App extends SimpleApplication {
         if (terrain.terrainType() == TerrainType.OCEAN) {
           int scaledLandLevelHeight = (int) ((TerrainGenerator.LAND_LEVEL + 1) / 2 * WORLD_HEIGHT);
           int y = scaledLandLevelHeight - (location.y * CHUNK_HEIGHT);
-          if (y >= 0 && y < CHUNK_HEIGHT) blocks[x][y][z] = waterBlock;
+          if (y >= 0 && y < CHUNK_HEIGHT)
+            blocks[x][y][z] = waterBlocks[terrain.temperature().ordinal()];
         }
 
         if (terrain.flora().isPresent()) {

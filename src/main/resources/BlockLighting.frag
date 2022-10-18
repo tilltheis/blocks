@@ -8,7 +8,11 @@
 
 // MY CHANGE
 varying vec4 worldPos;
+#ifdef OVERLAY_GRADIENT
+uniform vec4[OVERLAY_GRADIENT_STEPS] m_OverlayGradient;
+#else
 uniform vec4 m_Overlay;
+#endif
 
 // fog - jayfella
 #ifdef USE_FOG
@@ -141,7 +145,15 @@ void main(){
     vec4 diffuseColor = texture2D(m_DiffuseMap, newTexCoord);
 
     // MY CHANGE
+    #ifdef OVERLAY_GRADIENT
+    float grayscaleValue = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+    int gradientColorIndex = int(grayscaleValue * (OVERLAY_GRADIENT_STEPS - 1));
+    vec4 gradientColor1 = m_OverlayGradient[gradientColorIndex];
+    vec4 gradientColor2 = gradientColorIndex == (OVERLAY_GRADIENT_STEPS - 1) ? gradientColor1 : m_OverlayGradient[gradientColorIndex + 1];
+    diffuseColor = mix(gradientColor1, gradientColor2, grayscaleValue);
+    #else
     diffuseColor = vec4(overlay(diffuseColor.rgb, m_Overlay.rgb), m_Overlay.a);
+    #endif
 
     #else
     vec4 diffuseColor = vec4(1.0);

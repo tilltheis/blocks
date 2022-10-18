@@ -2,7 +2,6 @@ package blocks;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
-import com.jme3.asset.AssetManager;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
@@ -14,36 +13,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.concurrent.*;
 import java.util.function.Function;
 
-/**
- * The chunk grid contains chunks and their nodes centered around a central point. The outer layer
- * is only used for caching chunk but doesn't contain their nodes.<code>
- *
- *      grid
- *  4 - - - - -
- *  3 - N N N -
- *  2 - N N N -
- *  1 - N N N -
- *  0 - - - - -
- *    0 1 2 3 4
- *
- * </code> In the example grid above 'N' denotes a stored chunk with node, while '-' denotes an
- * empty cell.
- *
- * <p>The grid contents don't get rearranged completely when its center changes. Only its origin
- * (gridOffsetX and gridOffsetY) shifts and chunks no longer needed are replaced by the new ones.
- * <code>
- *
- *     grid
- * 4 - - N N N
- * 3 - c c c -
- * 2 - c c c c
- * 1 - c N N N
- * 0 - c N N N
- *   0 1 2 3 4
- *
- * </code> In the example grid above the origin has shifted from (0, 0) to (2, 3). 'c' denotes a
- * cached chunk.
- */
 @Slf4j
 public class ChunkGrid {
 
@@ -55,7 +24,7 @@ public class ChunkGrid {
   private final ExecutorService chunkMeshGenerationExecutorService;
   private final ExecutorService chunkBlockGenerationExecutorService;
   private final Function<Vec3i, Block[][][]> createChunkBlocks;
-  private final AssetManager assetManager;
+  private final BlockMaterial blockMaterial;
 
   private int gridOffsetX;
   private int gridOffsetZ;
@@ -74,14 +43,14 @@ public class ChunkGrid {
       @NonNull Vector3f centerWorldLocation,
       ExecutorService chunkBlockGenerationExecutorService,
       ExecutorService chunkMeshGenerationExecutorService,
-      @NonNull AssetManager assetManager,
+      @NonNull BlockMaterial blockMaterial,
       @NonNull Function<Vec3i, Block[][][]> createChunkBlocks) {
     this.gridSize = gridSize;
     this.chunkSize = chunkSize;
     this.createChunkBlocks = createChunkBlocks;
     this.chunkBlockGenerationExecutorService = chunkBlockGenerationExecutorService;
     this.chunkMeshGenerationExecutorService = chunkMeshGenerationExecutorService;
-    this.assetManager = assetManager;
+    this.blockMaterial = blockMaterial;
 
     firstGridChunkLocation = calculateFirstGridChunkLocation(centerWorldLocation);
     node = new Node();
@@ -98,7 +67,7 @@ public class ChunkGrid {
                         chunkLocation,
                         chunkSize,
                         generateChunkBlocks(chunkLocation),
-                        assetManager,
+                        blockMaterial,
                         this));
 
     initGrid();

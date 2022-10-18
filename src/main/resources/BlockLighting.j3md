@@ -18,7 +18,10 @@ MaterialDef Phong Lighting {
         Boolean UseVertexColor
 
         // MY CHANGE
+        // either Overlay or OverlayGradient + OverlayGradientSteps must be defined
         Color Overlay
+        Vector4Array OverlayGradient // must have exactly OverlayGradientSteps values
+        Int OverlayGradientSteps
 
         // Ambient color
         Color Ambient
@@ -199,6 +202,10 @@ MaterialDef Phong Lighting {
         }
 
         Defines {
+            // MY CHANGE
+            OVERLAY_GRADIENT : OverlayGradient
+            OVERLAY_GRADIENT_STEPS : OverlayGradientSteps
+
             VERTEX_COLOR : UseVertexColor
             VERTEX_LIGHTING : VertexLighting
             MATERIAL_COLORS : UseMaterialColors
