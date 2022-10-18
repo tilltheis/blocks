@@ -155,6 +155,10 @@ MaterialDef Phong Lighting {
         }
 
         Defines {
+            // MY CHANGE
+            OVERLAY_GRADIENT : OverlayGradient
+            OVERLAY_GRADIENT_STEPS : OverlayGradientSteps
+
             VERTEX_COLOR : UseVertexColor
             VERTEX_LIGHTING : VertexLighting
             MATERIAL_COLORS : UseMaterialColors
