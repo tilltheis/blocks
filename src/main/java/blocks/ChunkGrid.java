@@ -10,6 +10,7 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Optional;
 import java.util.concurrent.*;
 import java.util.function.Function;
 
@@ -266,6 +267,19 @@ public class ChunkGrid {
     }
 
     return sb.toString();
+  }
+
+  public Optional<Block> getBlock(int x, int y, int z) {
+    Chunk chunk =
+        getChunk(
+            new Vec3i(
+                (int) Math.floor((float) x / chunkSize.x),
+                (int) Math.floor((float) y / chunkSize.y),
+                (int) Math.floor((float) z / chunkSize.z)));
+    return chunk.getBlock(
+        (x + chunkSize.x) % chunkSize.x,
+        (y + chunkSize.y) % chunkSize.y,
+        (z + chunkSize.z) % chunkSize.z);
   }
 
   private record NodeIndexWithChunk(int nodeIndex, Chunk chunk) {}

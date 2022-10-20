@@ -56,6 +56,8 @@ public class App extends SimpleApplication {
   private static final long seed = 100;
   private TerrainGenerator terrainGenerator;
 
+  private AnimalSystem animalSystem;
+
   @Override
   public void destroy() {
     chunkBlockGenerationExecutorService.shutdownNow();
@@ -74,6 +76,8 @@ public class App extends SimpleApplication {
             GRID_WIDTH * CHUNK_WIDTH / 2f, WORLD_HEIGHT / 2f, GRID_DEPTH * CHUNK_DEPTH / 2f),
         new Vector3f(0, GRID_HEIGHT / 2f, 0));
 
+    cam.setLocation(new Vector3f(0, 150, 0));
+
     viewPort.setBackgroundColor(ColorRGBA.Blue.clone().interpolateLocal(ColorRGBA.White, 0.15f));
 
     initInputListeners();
@@ -87,6 +91,17 @@ public class App extends SimpleApplication {
     chunkMeshGenerationExecutorService =
         Executors.newFixedThreadPool(8, new ChunkGenerationThreadFactory());
     initGrid();
+
+    int spawnX = 62;
+    int spawnZ = 0;
+    Terrain terrainAtSpawn = terrainGenerator.terrainAt(spawnX, spawnZ);
+    int scaledHeightAtSpawn = (int) ((terrainAtSpawn.height() + 1) / 2 * WORLD_HEIGHT);
+    animalSystem = new AnimalSystem(chunkGrid);
+    AnimalEntity animalEntity =
+        new AnimalEntity(
+            new Vector3f(0.5f + spawnX, scaledHeightAtSpawn + 1.5f, 0.5f + spawnZ), assetManager);
+    animalSystem.add(animalEntity);
+    rootNode.attachChild(animalEntity.spatial);
 
     rootNode.addLight(new AmbientLight(new ColorRGBA(0.2f, 0.2f, 0.2f, 1f)));
     rootNode.addLight(
@@ -324,6 +339,7 @@ public class App extends SimpleApplication {
     super.simpleUpdate(tpf);
     chunkGrid.centerAroundWorldLocation(cam.getLocation());
     chunkGrid.update();
+    animalSystem.update(tpf);
   }
 
   private static class ChunkGenerationThreadFactory implements ThreadFactory {

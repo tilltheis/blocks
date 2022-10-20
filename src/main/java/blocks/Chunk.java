@@ -101,7 +101,7 @@ public class Chunk {
         && nextLocation.z < size.z
         && isVisibleFrom(block, nextLocation, visibilityDirection)
         && !mask[nextLocation.x][nextLocation.y][nextLocation.z]
-        && block.equals(getBlock(nextLocation.x, nextLocation.y, nextLocation.z))) {
+        && block.equals(getNullableBlock(nextLocation.x, nextLocation.y, nextLocation.z))) {
       length += 1;
       nextLocation.addLocal(axisDirection);
     }
@@ -115,7 +115,7 @@ public class Chunk {
     int z = blockLocation.z + direction.z;
     boolean isLocal = x >= 0 && y >= 0 && z >= 0 && x < size.x && y < size.y && z < size.z;
     if (isLocal) {
-      Block otherBlock = getBlock(x, y, z);
+      Block otherBlock = getNullableBlock(x, y, z);
       return otherBlock == null || (otherBlock.isTransparent() && !block.equals(otherBlock));
     } else {
       if (!block.isTransparent()) return true;
@@ -144,7 +144,7 @@ public class Chunk {
           for (int x = 0; x < size.x; x++) {
             if (mask[x][y][z]) continue;
 
-            Block block = getBlock(x, y, z);
+            Block block = getNullableBlock(x, y, z);
             blockLocation.set(x, y, z);
 
             if (block != null && isVisibleFrom(block, blockLocation, direction)) {
@@ -252,8 +252,12 @@ public class Chunk {
         (float) direction.z);
   }
 
-  private Block getBlock(int x, int y, int z) {
+  private Block getNullableBlock(int x, int y, int z) {
     return blocks[x][y][z];
+  }
+
+  public Optional<Block> getBlock(int x, int y, int z) {
+    return Optional.ofNullable(getNullableBlock(x, y, z));
   }
 
   private void setBlock(int x, int y, int z, Block block) {
