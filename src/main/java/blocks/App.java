@@ -15,6 +15,7 @@ import com.jme3.system.AppSettings;
 import com.simsilica.mathd.Vec3i;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -92,16 +93,32 @@ public class App extends SimpleApplication {
         Executors.newFixedThreadPool(8, new ChunkGenerationThreadFactory());
     initGrid();
 
-    int spawnX = 62;
-    int spawnZ = 0;
-    Terrain terrainAtSpawn = terrainGenerator.terrainAt(spawnX, spawnZ);
-    int scaledHeightAtSpawn = (int) ((terrainAtSpawn.height() + 1) / 2 * WORLD_HEIGHT);
     animalSystem = new AnimalSystem(chunkGrid);
-    AnimalEntity animalEntity =
-        new AnimalEntity(
-            new Vector3f(0.5f + spawnX, scaledHeightAtSpawn + 1.5f, 0.5f + spawnZ), assetManager);
-    animalSystem.add(animalEntity);
-    rootNode.attachChild(animalEntity.spatial);
+
+    {
+      int spawnX = 62;
+      int spawnZ = 0;
+      Terrain terrainAtSpawn = terrainGenerator.terrainAt(spawnX, spawnZ);
+      int scaledHeightAtSpawn = (int) ((terrainAtSpawn.height() + 1) / 2 * WORLD_HEIGHT);
+      AnimalEntity animalEntity =
+          new AnimalEntity(
+              new Vector3f(0.5f + spawnX, scaledHeightAtSpawn + 1.5f, 0.5f + spawnZ), assetManager);
+      animalSystem.add(animalEntity);
+      rootNode.attachChild(animalEntity.spatial);
+    }
+
+    Random random = new Random(seed);
+    for (int i = 0; i < 10; i++) {
+      int spawnX = random.nextInt(100);
+      int spawnZ = random.nextInt(100);
+      Terrain terrainAtSpawn = terrainGenerator.terrainAt(spawnX, spawnZ);
+      int scaledHeightAtSpawn = (int) ((terrainAtSpawn.height() + 1) / 2 * WORLD_HEIGHT);
+      AnimalEntity animalEntity =
+          new AnimalEntity(
+              new Vector3f(0.5f + spawnX, scaledHeightAtSpawn + 1.5f, 0.5f + spawnZ), assetManager);
+      animalSystem.add(animalEntity);
+      rootNode.attachChild(animalEntity.spatial);
+    }
 
     rootNode.addLight(new AmbientLight(new ColorRGBA(0.2f, 0.2f, 0.2f, 1f)));
     rootNode.addLight(
