@@ -277,9 +277,9 @@ public class ChunkGrid {
                 (int) Math.floor((float) y / chunkSize.y),
                 (int) Math.floor((float) z / chunkSize.z)));
     return chunk.getBlock(
-        (x + chunkSize.x) % chunkSize.x,
-        (y + chunkSize.y) % chunkSize.y,
-        (z + chunkSize.z) % chunkSize.z);
+        (x % chunkSize.x + chunkSize.x) % chunkSize.x,
+        (y % chunkSize.y + chunkSize.y) % chunkSize.y,
+        (z % chunkSize.z + chunkSize.z) % chunkSize.z);
   }
 
   private record NodeIndexWithChunk(int nodeIndex, Chunk chunk) {}
