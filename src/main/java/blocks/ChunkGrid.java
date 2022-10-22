@@ -83,12 +83,47 @@ public class ChunkGrid {
         for (int z = 0; z < gridSize.z; z++) {
           // scheduleChunkGeneration() requires a filled node list
           node.attachChild(new Node("empty"));
-
-          Vec3i gridLocation = new Vec3i(x, y, z);
-          Vec3i chunkLocation = firstGridChunkLocation.add(x, y, z);
-          scheduleChunkGeneration(gridLocation, chunkLocation);
         }
       }
+    }
+
+    // build initial grid in spiral order around center
+    int x = 0;
+    int z = 0;
+    int d = 1;
+    int m = 1;
+
+    int i = 0;
+    int loopLimit = gridSize.x * gridSize.z;
+
+    int spiralXOffset = gridSize.x % 2 == 1 ? gridSize.x / 2 : gridSize.x / 2 - 1;
+    int spiralZOffset = gridSize.z % 2 == 1 ? gridSize.z / 2 : gridSize.z / 2 - 1;
+
+    while (i < loopLimit) {
+      while (2 * x * d < m && i < loopLimit) {
+        for (int y = 0; y < gridSize.y; y++) {
+          Vec3i gridLocation = new Vec3i(x + spiralXOffset, y, z + spiralZOffset);
+          Vec3i chunkLocation = firstGridChunkLocation.add(x + spiralXOffset, y, z + spiralZOffset);
+          scheduleChunkGeneration(gridLocation, chunkLocation);
+        }
+
+        x = x + d;
+        i = i + 1;
+      }
+
+      while (2 * z * d < m && i < loopLimit) {
+        for (int y = 0; y < gridSize.y; y++) {
+          Vec3i gridLocation = new Vec3i(x + spiralXOffset, y, z + spiralZOffset);
+          Vec3i chunkLocation = firstGridChunkLocation.add(x + spiralXOffset, y, z + spiralZOffset);
+          scheduleChunkGeneration(gridLocation, chunkLocation);
+        }
+
+        z = z + d;
+        i = i + 1;
+      }
+
+      d = -1 * d;
+      m = m + 1;
     }
 
     if (log.isDebugEnabled()) log.debug("initially\n" + debugView());
