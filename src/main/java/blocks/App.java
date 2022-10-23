@@ -59,6 +59,8 @@ public class App extends SimpleApplication {
 
   private AnimalSystem animalSystem;
 
+  private boolean shouldKeepCamLocation = false;
+
   @Override
   public void destroy() {
     chunkBlockGenerationExecutorService.shutdownNow();
@@ -70,14 +72,17 @@ public class App extends SimpleApplication {
   public void simpleInitApp() {
     flyCam.setMoveSpeed(250);
     cam.setFrustumFar(2048); // default is 1000
-    cam.setLocation(
-        new Vector3f(GRID_WIDTH * CHUNK_WIDTH / 2f, WORLD_HEIGHT * 1.5f, CHUNK_DEPTH * -3));
-    cam.lookAt(
-        new Vector3f(
-            GRID_WIDTH * CHUNK_WIDTH / 2f, WORLD_HEIGHT / 2f, GRID_DEPTH * CHUNK_DEPTH / 2f),
-        new Vector3f(0, GRID_HEIGHT / 2f, 0));
 
-    cam.setLocation(new Vector3f(0, 150, 0));
+    if (!shouldKeepCamLocation) {
+      cam.setLocation(
+          new Vector3f(GRID_WIDTH * CHUNK_WIDTH / 2f, WORLD_HEIGHT * 1.5f, CHUNK_DEPTH * -3));
+      cam.lookAt(
+          new Vector3f(
+              GRID_WIDTH * CHUNK_WIDTH / 2f, WORLD_HEIGHT / 2f, GRID_DEPTH * CHUNK_DEPTH / 2f),
+          new Vector3f(0, GRID_HEIGHT / 2f, 0));
+
+      cam.setLocation(new Vector3f(0, 150, 0));
+    }
 
     viewPort.setBackgroundColor(ColorRGBA.Blue.clone().interpolateLocal(ColorRGBA.White, 0.15f));
 
@@ -164,16 +169,10 @@ public class App extends SimpleApplication {
 
     switch (name) {
       case "resetGame" -> {
-        Vector3f oldCamLocation = cam.getLocation().clone();
-        Quaternion oldCamRotation = cam.getRotation().clone();
+        shouldKeepCamLocation = isShiftKeyPressed;
 
         cleanup();
         simpleInitApp();
-
-        if (isShiftKeyPressed) {
-          cam.setLocation(oldCamLocation);
-          cam.setRotation(oldCamRotation);
-        }
 
         log.info("resetGame");
       }
