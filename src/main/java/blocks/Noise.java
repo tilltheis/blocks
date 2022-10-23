@@ -57,6 +57,25 @@ public final class Noise {
     return total;
   }
 
+  float getValue3(int x, int y, int z) {
+    float total = 0;
+    double frequency = 1d / frequencyDivisor;
+    double gain = this.gain > 0 ? this.gain : 1d / lacunarity;
+    double amplitude = startAmplitude > 0 ? startAmplitude : gain;
+    double range = 0;
+    for (int i = 0; i < octaves; ++i) {
+      float noise =
+          OpenSimplex2.noise3_ImproveXZ(seeds[i], x * frequency, z * frequency, y * frequency);
+      total += noise * amplitude;
+      range += amplitude;
+      frequency *= lacunarity;
+      amplitude *= gain;
+    }
+    total /= range; // scale to (-1, +1)
+    if (granularity > 0) total = (float) (Math.round(total * granularity) / granularity);
+    return total;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;

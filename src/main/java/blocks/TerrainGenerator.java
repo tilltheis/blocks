@@ -15,6 +15,9 @@ public class TerrainGenerator {
 
   private final Noise heatNoise;
 
+  private final long subterrainSeed;
+  private final Noise subterrainNoise;
+
   public static final float LAND_LEVEL = -0.2f;
 
   private record TerrainHeight(TerrainType terrainType, float height, Temperature temperature) {}
@@ -25,7 +28,11 @@ public class TerrainGenerator {
     hillNoise = new Noise(4, 0, 500, 3.5, 0, 0, new Random(seed));
     oceanNoise = new Noise(4, 0, 1000, 3.5, 0, 0, new Random(seed));
     treeNoise = new Noise(4, 0, 10, 4, 0, 0, new Random(seed));
+
     heatNoise = new Noise(2, 0, 3000, 2, 0, 0, new Random(seed));
+
+    subterrainSeed = new Random(seed).nextLong();
+    subterrainNoise = new Noise(2, 0, 50, 6, 0.1f, 0, new Random(seed));
   }
 
   // mu is percentage between x and y, must be in range (0, 1)
@@ -91,6 +98,25 @@ public class TerrainGenerator {
     Optional<Flora> flora = floraAt(x, z, terrainHeight.terrainType);
     return new Terrain(
         terrainHeight.terrainType, terrainHeight.height, terrainHeight.temperature, flora);
+  }
+
+  public Optional<TerrainType> subterrainAt(int x, int y, int z) {
+    float factor = 0.01f;
+    float horizontalFactor = 1;
+    float noiseValue = subterrainNoise.getValue3(x, y, z);
+    return noiseValue > 0.60f ? Optional.empty() : Optional.of(TerrainType.HILL);
+  }
+
+  public Optional<TerrainType> _subterrainAt(int x, int y, int z) {
+    float factor = 0.003f;
+    float horizontalFactor = 1;
+    float noiseValue =
+        OpenSimplex2.noise3_ImproveXZ(
+            subterrainSeed,
+            x * factor * horizontalFactor,
+            z * factor * horizontalFactor,
+            y * factor);
+    return noiseValue * noiseValue > 0.60f ? Optional.empty() : Optional.of(TerrainType.HILL);
   }
 
   private Optional<Flora> floraAt(int x, int z, TerrainType terrainType) {
