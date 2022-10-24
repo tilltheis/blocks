@@ -57,7 +57,7 @@ public final class Noise {
     return total;
   }
 
-  float getValue3(int x, int y, int z) {
+  float getValue(int x, int y, int z) {
     float total = 0;
     double frequency = 1d / frequencyDivisor;
     double gain = this.gain > 0 ? this.gain : 1d / lacunarity;

@@ -4,5 +4,8 @@ enum TerrainType {
   MOUNTAIN,
   FLATLAND,
   OCEAN,
-  HILL
+  HILL,
+  CAVE,
+  TUNNEL,
+  TUNNEL_ENTRANCE
 }

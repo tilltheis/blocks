@@ -1,10 +1,12 @@
 package blocks;
 
 import com.jme3.math.FastMath;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
 import java.util.Random;
 
+@Slf4j
 public class TerrainGenerator {
   private final Noise mountainNoise;
   private final Noise flatlandNoise;
@@ -15,24 +17,33 @@ public class TerrainGenerator {
 
   private final Noise heatNoise;
 
-  private final long subterrainSeed;
-  private final Noise subterrainNoise;
+  private final Noise caveNoise;
+  private final Noise tunnelNoise1;
+  private final Noise tunnelNoise2;
+  private final Noise tunnelNoise3;
+  private final Noise tunnelEntraceNoise;
 
   public static final float LAND_LEVEL = -0.2f;
+
+  // TODO inject this, think about returning world units instead of floats
+  private final int worldHeight = App.WORLD_HEIGHT;
 
   private record TerrainHeight(TerrainType terrainType, float height, Temperature temperature) {}
 
   public TerrainGenerator(long seed) {
-    mountainNoise = new Noise(4, 0, 1500, 4.1, -4, 0, new Random(seed));
-    flatlandNoise = new Noise(4, 0, 1500, 3.5, 0, 0, new Random(seed));
-    hillNoise = new Noise(4, 0, 500, 3.5, 0, 0, new Random(seed));
-    oceanNoise = new Noise(4, 0, 1000, 3.5, 0, 0, new Random(seed));
-    treeNoise = new Noise(4, 0, 10, 4, 0, 0, new Random(seed));
+    mountainNoise = new Noise(4, 0, 1500, 4.1, -4, 0, new Random(seed++));
+    flatlandNoise = new Noise(4, 0, 1500, 3.5, 0, 0, new Random(seed++));
+    hillNoise = new Noise(4, 0, 500, 3.5, 0, 0, new Random(seed++));
+    oceanNoise = new Noise(4, 0, 1000, 3.5, 0, 0, new Random(seed++));
+    treeNoise = new Noise(4, 0, 10, 4, 0, 0, new Random(seed++));
 
-    heatNoise = new Noise(2, 0, 3000, 2, 0, 0, new Random(seed));
+    heatNoise = new Noise(2, 0, 3000, 2, 0, 0, new Random(seed++));
 
-    subterrainSeed = new Random(seed).nextLong();
-    subterrainNoise = new Noise(2, 0, 50, 6, 0.1f, 0, new Random(seed));
+    caveNoise = new Noise(2, 0, 50, 6, 0.1f, 0, new Random(seed++));
+    tunnelNoise1 = new Noise(2, 0, 70, 2, 0, 0, new Random(seed++));
+    tunnelNoise2 = new Noise(1, 0, 90, 2, 0, 0, new Random(seed++));
+    tunnelNoise3 = new Noise(4, 0, 80, 1, 0, 0, new Random(seed++));
+    tunnelEntraceNoise = new Noise(1, 0, 500, 1, 0, 0, new Random(seed++));
   }
 
   // mu is percentage between x and y, must be in range (0, 1)
@@ -101,22 +112,33 @@ public class TerrainGenerator {
   }
 
   public Optional<TerrainType> subterrainAt(int x, int y, int z) {
-    float factor = 0.01f;
-    float horizontalFactor = 1;
-    float noiseValue = subterrainNoise.getValue3(x, y, z);
-    return noiseValue > 0.60f ? Optional.empty() : Optional.of(TerrainType.HILL);
-  }
+    TerrainHeight terrainHeight = terrainHeightAt(x, z);
+    float height = terrainHeight.height;
 
-  public Optional<TerrainType> _subterrainAt(int x, int y, int z) {
-    float factor = 0.003f;
-    float horizontalFactor = 1;
-    float noiseValue =
-        OpenSimplex2.noise3_ImproveXZ(
-            subterrainSeed,
-            x * factor * horizontalFactor,
-            z * factor * horizontalFactor,
-            y * factor);
-    return noiseValue * noiseValue > 0.60f ? Optional.empty() : Optional.of(TerrainType.HILL);
+    float yHeight = (float) y / worldHeight * 2 - 1;
+
+    boolean isCloseToSurface = yHeight >= height - 0.1f;
+    float threshold = 0.15f;
+
+    boolean isTunnel =
+        Math.abs(tunnelNoise1.getValue(x, y, z)) < threshold
+            && Math.abs(tunnelNoise2.getValue(x, y, z)) < threshold
+            && Math.abs(tunnelNoise3.getValue(x, y, z)) < threshold;
+
+    TerrainType terrainType = null;
+
+    if (isCloseToSurface) {
+      if (isTunnel && Math.abs(tunnelEntraceNoise.getValue(x, y, z)) < 0.01f)
+        terrainType = TerrainType.TUNNEL_ENTRANCE;
+    } else {
+      if (caveNoise.getValue(x, y, z) > 0.6f) {
+        terrainType = TerrainType.CAVE;
+      } else if (isTunnel) {
+        terrainType = TerrainType.TUNNEL;
+      }
+    }
+
+    return Optional.ofNullable(terrainType);
   }
 
   private Optional<Flora> floraAt(int x, int z, TerrainType terrainType) {

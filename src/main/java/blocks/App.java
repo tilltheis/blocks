@@ -9,12 +9,12 @@ import com.jme3.light.AmbientLight;
 import com.jme3.light.DirectionalLight;
 import com.jme3.light.Light;
 import com.jme3.math.ColorRGBA;
-import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.system.AppSettings;
 import com.simsilica.mathd.Vec3i;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -45,7 +45,7 @@ public class App extends SimpleApplication {
   private static final int GRID_HEIGHT = 5;
   private static final int GRID_DEPTH = 40;
 
-  private static final int WORLD_HEIGHT = GRID_HEIGHT * CHUNK_HEIGHT;
+  public static final int WORLD_HEIGHT = GRID_HEIGHT * CHUNK_HEIGHT;
 
   ChunkGrid chunkGrid;
 
@@ -230,6 +230,26 @@ public class App extends SimpleApplication {
   private static final Block[] leafBlocks = createTemperaturedBlocks(BlockType.LEAF);
   private static final Block[] grassBlocks = createTemperaturedBlocks(BlockType.GRASS);
 
+  private static final boolean shouldOnlyRenderTunnels = false;
+
+  private static Block getTerrainBlock(TerrainType terrainType) {
+    if (shouldOnlyRenderTunnels)
+      return switch (terrainType) {
+        case MOUNTAIN, FLATLAND, OCEAN, HILL -> null;
+        case CAVE -> rockBlocks[Temperature.NORMAL.ordinal()];
+        case TUNNEL -> dirtBlocks[Temperature.NORMAL.ordinal()];
+        case TUNNEL_ENTRANCE -> grassBlocks[Temperature.NORMAL.ordinal()];
+      };
+
+    return switch (terrainType) {
+      case MOUNTAIN -> rockBlocks[Temperature.NORMAL.ordinal()];
+      case FLATLAND -> grassBlocks[Temperature.NORMAL.ordinal()];
+      case OCEAN -> waterBlocks[Temperature.NORMAL.ordinal()];
+      case HILL -> dirtBlocks[Temperature.NORMAL.ordinal()];
+      case CAVE, TUNNEL, TUNNEL_ENTRANCE -> null;
+    };
+  }
+
   private Block[][][] createBlocks(Vec3i location) {
     Block[][][] blocks = new Block[CHUNK_WIDTH][CHUNK_HEIGHT][CHUNK_DEPTH];
 
@@ -241,26 +261,33 @@ public class App extends SimpleApplication {
         int scaledHeight = (int) ((height + 1) / 2 * WORLD_HEIGHT);
 
         for (int y = 0; y < CHUNK_HEIGHT && y <= scaledHeight - (location.y * CHUNK_HEIGHT); y++) {
-          Block block;
-          if (location.y * CHUNK_HEIGHT + y < scaledHeight) block = dirtBlocks[1];
-          else {
-            block =
-                switch (terrain.terrainType()) {
-                  case MOUNTAIN -> rockBlocks[terrain.temperature().ordinal()];
-                  case HILL -> dirtBlocks[terrain.temperature().ordinal()];
-                  case FLATLAND -> grassBlocks[terrain.temperature().ordinal()];
-                  case OCEAN -> dirtBlocks[
-                      terrain.temperature().ordinal()]; // will be overridden below
-                };
+          Optional<TerrainType> subterrainType =
+              terrainGenerator.subterrainAt(
+                  location.x * CHUNK_WIDTH + x,
+                  location.y * CHUNK_HEIGHT + y,
+                  location.z * CHUNK_DEPTH + z);
+
+          if (subterrainType.isEmpty()) {
+            Block block;
+
+            if (location.y * CHUNK_HEIGHT + y < scaledHeight) {
+              // underground
+              block = getTerrainBlock(TerrainType.HILL);
+            } else {
+              // surface
+              block = getTerrainBlock(terrain.terrainType());
+            }
+
+            blocks[x][y][z] = block;
+          } else {
+            blocks[x][y][z] = getTerrainBlock(subterrainType.get());
           }
-          blocks[x][y][z] = block;
         }
 
         if (terrain.terrainType() == TerrainType.OCEAN) {
           int scaledLandLevelHeight = (int) ((TerrainGenerator.LAND_LEVEL + 1) / 2 * WORLD_HEIGHT);
           int y = scaledLandLevelHeight - (location.y * CHUNK_HEIGHT);
-          if (y >= 0 && y < CHUNK_HEIGHT)
-            blocks[x][y][z] = waterBlocks[terrain.temperature().ordinal()];
+          if (y >= 0 && y < CHUNK_HEIGHT) blocks[x][y][z] = getTerrainBlock(TerrainType.OCEAN);
         }
 
         if (terrain.flora().isPresent()) {
