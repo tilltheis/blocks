@@ -111,13 +111,10 @@ public class TerrainGenerator {
         terrainHeight.terrainType, terrainHeight.height, terrainHeight.temperature, flora);
   }
 
-  public Optional<TerrainType> subterrainAt(int x, int y, int z) {
-    TerrainHeight terrainHeight = terrainHeightAt(x, z);
-    float height = terrainHeight.height;
-
+  public Optional<TerrainType> subterrainAt(int x, int y, int z, float terrainHeight) {
     float yHeight = (float) y / worldHeight * 2 - 1;
 
-    boolean isCloseToSurface = yHeight >= height - 0.1f;
+    boolean isCloseToSurface = yHeight >= terrainHeight - 0.1f;
     float threshold = 0.15f;
 
     boolean isTunnel =

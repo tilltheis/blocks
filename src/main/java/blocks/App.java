@@ -265,7 +265,8 @@ public class App extends SimpleApplication {
               terrainGenerator.subterrainAt(
                   location.x * CHUNK_WIDTH + x,
                   location.y * CHUNK_HEIGHT + y,
-                  location.z * CHUNK_DEPTH + z);
+                  location.z * CHUNK_DEPTH + z,
+                  height);
 
           if (subterrainType.isEmpty()) {
             Block block;
