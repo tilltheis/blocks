@@ -235,7 +235,7 @@ public class App extends SimpleApplication {
   private static Block getTerrainBlock(TerrainType terrainType) {
     if (shouldOnlyRenderTunnels)
       return switch (terrainType) {
-        case MOUNTAIN, FLATLAND, OCEAN, HILL -> null;
+        case MOUNTAIN, FLATLAND, OCEAN_BED, OCEAN, HILL -> null;
         case CAVE -> rockBlocks[Temperature.NORMAL.ordinal()];
         case TUNNEL -> dirtBlocks[Temperature.NORMAL.ordinal()];
         case TUNNEL_ENTRANCE -> grassBlocks[Temperature.NORMAL.ordinal()];
@@ -244,6 +244,7 @@ public class App extends SimpleApplication {
     return switch (terrainType) {
       case MOUNTAIN -> rockBlocks[Temperature.NORMAL.ordinal()];
       case FLATLAND -> grassBlocks[Temperature.NORMAL.ordinal()];
+      case OCEAN_BED -> dirtBlocks[Temperature.NORMAL.ordinal()];
       case OCEAN -> waterBlocks[Temperature.NORMAL.ordinal()];
       case HILL -> dirtBlocks[Temperature.NORMAL.ordinal()];
       case CAVE, TUNNEL, TUNNEL_ENTRANCE -> null;
@@ -268,9 +269,9 @@ public class App extends SimpleApplication {
                   location.z * CHUNK_DEPTH + z,
                   terrain);
 
-          if (subterrainType.isEmpty()) {
-            Block block;
+          Block block;
 
+          if (subterrainType.isEmpty()) {
             if (location.y * CHUNK_HEIGHT + y < scaledHeight) {
               // underground
               block = getTerrainBlock(TerrainType.HILL);
@@ -278,14 +279,15 @@ public class App extends SimpleApplication {
               // surface
               block = getTerrainBlock(terrain.terrainType());
             }
-
-            blocks[x][y][z] = block;
           } else {
-            blocks[x][y][z] = getTerrainBlock(subterrainType.get());
+            // tunnel/cave
+            block = getTerrainBlock(subterrainType.get());
           }
+
+          blocks[x][y][z] = block;
         }
 
-        if (terrain.terrainType() == TerrainType.OCEAN) {
+        if (terrain.terrainType() == TerrainType.OCEAN_BED) {
           int scaledLandLevelHeight = (int) ((TerrainGenerator.LAND_LEVEL + 1) / 2 * WORLD_HEIGHT);
           int y = scaledLandLevelHeight - (location.y * CHUNK_HEIGHT);
           if (y >= 0 && y < CHUNK_HEIGHT) blocks[x][y][z] = getTerrainBlock(TerrainType.OCEAN);

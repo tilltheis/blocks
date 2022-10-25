@@ -92,7 +92,7 @@ public class TerrainGenerator {
     }
 
     if (interpolatedValue < -0.2f) {
-      terrainType = TerrainType.OCEAN;
+      terrainType = TerrainType.OCEAN_BED;
     }
 
     float temperatureFalloff = 0.5f;
@@ -125,7 +125,7 @@ public class TerrainGenerator {
     TerrainType terrainType = null;
 
     if (isCloseToSurface) {
-      if (terrain.terrainType() != TerrainType.OCEAN
+      if (terrain.terrainType() != TerrainType.OCEAN_BED
           && isTunnel
           && Math.abs(tunnelEntraceNoise.getValue(x, y, z)) < 0.01f)
         terrainType = TerrainType.TUNNEL_ENTRANCE;
