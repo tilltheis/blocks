@@ -34,16 +34,18 @@ public class Chunk {
 
   private static final Map<Vec3i, Quaternion> rotationForDirection =
       Map.of(
-          new Vec3i(0, 0, 1),
-          new Quaternion().fromAngleAxis(FastMath.PI, Vector3f.UNIT_Y),
-          new Vec3i(0, 0, -1),
+          new Vec3i(0, 0, -1), // front
           new Quaternion().fromAngleAxis(0, Vector3f.UNIT_Y),
-          new Vec3i(0, 1, 0),
+          new Vec3i(0, 0, 1), // back
+          new Quaternion().fromAngleAxis(FastMath.PI, Vector3f.UNIT_Y),
+          new Vec3i(0, -1, 0), // bottom
+          new Quaternion().fromAngleAxis(-FastMath.HALF_PI, Vector3f.UNIT_X),
+          new Vec3i(0, 1, 0), // top
           new Quaternion().fromAngleAxis(FastMath.HALF_PI, Vector3f.UNIT_X),
-          new Vec3i(1, 0, 0),
-          new Quaternion().fromAngleAxis(-FastMath.HALF_PI, Vector3f.UNIT_Y),
-          new Vec3i(-1, 0, 0),
-          new Quaternion().fromAngleAxis(FastMath.HALF_PI, Vector3f.UNIT_Y));
+          new Vec3i(-1, 0, 0), // left
+          new Quaternion().fromAngleAxis(FastMath.HALF_PI, Vector3f.UNIT_Y),
+          new Vec3i(1, 0, 0), // right
+          new Quaternion().fromAngleAxis(-FastMath.HALF_PI, Vector3f.UNIT_Y));
   private static final Vector2f[] meshTextureCoordinates = {
     new Vector2f(0, 0), new Vector2f(1, 0), new Vector2f(0, 1), new Vector2f(1, 1)
   };
