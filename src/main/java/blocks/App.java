@@ -14,7 +14,6 @@ import com.jme3.system.AppSettings;
 import com.simsilica.mathd.Vec3i;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -23,6 +22,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 public class App extends SimpleApplication {
+
+  private ChunkBlockGenerator chunkBlockGenerator;
 
   public static void main(String[] args) {
     App app = new App();
@@ -91,6 +92,9 @@ public class App extends SimpleApplication {
     createCrosshair();
 
     terrainGenerator = new TerrainGenerator(seed);
+    chunkBlockGenerator =
+        new ChunkBlockGenerator(
+            new Vec3i(CHUNK_WIDTH, CHUNK_HEIGHT, CHUNK_DEPTH), terrainGenerator);
 
     chunkBlockGenerationExecutorService =
         Executors.newFixedThreadPool(8, new ChunkGenerationThreadFactory());
@@ -188,7 +192,7 @@ public class App extends SimpleApplication {
             chunkBlockGenerationExecutorService,
             chunkMeshGenerationExecutorService,
             new BlockMaterial(assetManager),
-            this::createBlocks);
+            chunkBlockGenerator::generateBlocks);
     rootNode.attachChild(chunkGrid.getNode());
   }
 
@@ -202,182 +206,6 @@ public class App extends SimpleApplication {
         settings.getHeight() / 2f + crosshair.getLineHeight() / 2,
         0);
     guiNode.attachChild(crosshair);
-  }
-
-  private static Temperature[] temperatures = Temperature.values();
-
-  /**
-   * @return Blocks, colored for all temperatures, indexed by temperature ordinals
-   */
-  private static Block[] createTemperaturedBlocks(BlockType blockType) {
-    Block[] blocks = new Block[temperatures.length];
-    for (Temperature temperature : temperatures) {
-      ColorRGBA color =
-          switch (temperature) {
-            case COLD -> blockType.color.clone().interpolateLocal(ColorRGBA.White, 0.5f);
-            case NORMAL -> blockType.color;
-            case HOT -> blockType.color.clone().interpolateLocal(ColorRGBA.Red, 0.2f);
-          };
-      blocks[temperature.ordinal()] = new Block(blockType, color, blockType.color.a < 1);
-    }
-    return blocks;
-  }
-
-  private static final Block[] dirtBlocks = createTemperaturedBlocks(BlockType.DIRT);
-  private static final Block[] rockBlocks = createTemperaturedBlocks(BlockType.ROCK);
-  private static final Block[] waterBlocks = createTemperaturedBlocks(BlockType.WATER);
-  private static final Block[] woodBlocks = createTemperaturedBlocks(BlockType.WOOD);
-  private static final Block[] leafBlocks = createTemperaturedBlocks(BlockType.LEAF);
-  private static final Block[] grassBlocks = createTemperaturedBlocks(BlockType.GRASS);
-
-  private static final boolean shouldOnlyRenderTunnels = false;
-
-  private static Block getTerrainBlock(TerrainType terrainType) {
-    if (shouldOnlyRenderTunnels)
-      return switch (terrainType) {
-        case MOUNTAIN, FLATLAND, OCEAN_BED, OCEAN, HILL -> null;
-        case CAVE -> rockBlocks[Temperature.NORMAL.ordinal()];
-        case TUNNEL -> dirtBlocks[Temperature.NORMAL.ordinal()];
-        case TUNNEL_ENTRANCE -> grassBlocks[Temperature.NORMAL.ordinal()];
-      };
-
-    return switch (terrainType) {
-      case MOUNTAIN -> rockBlocks[Temperature.NORMAL.ordinal()];
-      case FLATLAND -> grassBlocks[Temperature.NORMAL.ordinal()];
-      case OCEAN_BED -> dirtBlocks[Temperature.NORMAL.ordinal()];
-      case OCEAN -> waterBlocks[Temperature.NORMAL.ordinal()];
-      case HILL -> dirtBlocks[Temperature.NORMAL.ordinal()];
-      case CAVE, TUNNEL, TUNNEL_ENTRANCE -> null;
-    };
-  }
-
-  private Block[][][] createBlocks(Vec3i location) {
-    Block[][][] blocks = new Block[CHUNK_WIDTH][CHUNK_HEIGHT][CHUNK_DEPTH];
-
-    for (int x = 0; x < CHUNK_WIDTH; x++) {
-      for (int z = 0; z < CHUNK_DEPTH; z++) {
-        Terrain terrain =
-            terrainGenerator.terrainAt(location.x * CHUNK_WIDTH + x, location.z * CHUNK_DEPTH + z);
-        float height = terrain.height();
-        int scaledHeight = (int) ((height + 1) / 2 * WORLD_HEIGHT);
-
-        for (int y = 0; y < CHUNK_HEIGHT && y <= scaledHeight - (location.y * CHUNK_HEIGHT); y++) {
-          Optional<TerrainType> subterrainType =
-              terrainGenerator.subterrainAt(
-                  location.x * CHUNK_WIDTH + x,
-                  location.y * CHUNK_HEIGHT + y,
-                  location.z * CHUNK_DEPTH + z,
-                  terrain);
-
-          Block block;
-
-          if (subterrainType.isEmpty()) {
-            if (location.y * CHUNK_HEIGHT + y < scaledHeight) {
-              // underground
-              block = getTerrainBlock(TerrainType.HILL);
-            } else {
-              // surface
-              block = getTerrainBlock(terrain.terrainType());
-            }
-          } else {
-            // tunnel/cave
-            block = getTerrainBlock(subterrainType.get());
-          }
-
-          blocks[x][y][z] = block;
-        }
-
-        if (terrain.terrainType() == TerrainType.OCEAN_BED) {
-          int scaledLandLevelHeight = (int) ((TerrainGenerator.LAND_LEVEL + 1) / 2 * WORLD_HEIGHT);
-          int y = scaledLandLevelHeight - (location.y * CHUNK_HEIGHT);
-          if (y >= 0 && y < CHUNK_HEIGHT) blocks[x][y][z] = getTerrainBlock(TerrainType.OCEAN);
-        }
-
-        if (terrain.flora().isPresent()) {
-          int y = scaledHeight - (location.y * CHUNK_HEIGHT);
-          switch (terrain.flora().get()) {
-            case TREE -> createTreeAt(
-                x,
-                y,
-                z,
-                blocks,
-                woodBlocks[terrain.temperature().ordinal()],
-                leafBlocks[terrain.temperature().ordinal()]);
-          }
-        }
-      }
-    }
-
-    // create trees that spawn outside this chunk but reach into it
-    int outsideTreeRangeX = Flora.TREE.size.x / 2;
-    int outsideTreeRangeZ = Flora.TREE.size.z / 2;
-    for (int x = -outsideTreeRangeX; x < CHUNK_WIDTH + outsideTreeRangeX; x++) {
-      for (int z = -outsideTreeRangeZ; z < CHUNK_DEPTH + outsideTreeRangeZ; z++) {
-        Terrain terrain =
-            terrainGenerator.terrainAt(location.x * CHUNK_WIDTH + x, location.z * CHUNK_DEPTH + z);
-
-        if (terrain.flora().isPresent() && terrain.flora().get() == Flora.TREE) {
-          int scaledHeight = (int) ((terrain.height() + 1) / 2 * WORLD_HEIGHT);
-          int y = scaledHeight - (location.y * CHUNK_HEIGHT);
-          createTreeAt(
-              x,
-              y,
-              z,
-              blocks,
-              woodBlocks[terrain.temperature().ordinal()],
-              leafBlocks[terrain.temperature().ordinal()]);
-        }
-
-        // inside of chunk has already been scanned
-        if (x >= 0 && x < CHUNK_WIDTH && z == -1) z = CHUNK_DEPTH - 1;
-      }
-    }
-
-    return blocks;
-  }
-
-  private void createTreeAt(
-      int x, int y, int z, Block[][][] blocks, Block woodBlock, Block leafBlock) {
-    Vec3i size = Flora.TREE.size;
-
-    if (y <= -size.y || y >= CHUNK_HEIGHT) return;
-
-    int treeStartX = x - size.x / 2;
-    int treeStartY = y;
-    int treeStartZ = z - size.z / 2;
-
-    int xOffset = Math.max(0, -treeStartX);
-    int yOffset = Math.max(0, -treeStartY);
-    int zOffset = Math.max(0, -treeStartZ);
-
-    int xLimit = Math.min(size.x, CHUNK_WIDTH - treeStartX);
-    int yLimit = Math.min(size.y, CHUNK_HEIGHT - treeStartY);
-    int zLimit = Math.min(size.z, CHUNK_DEPTH - treeStartZ);
-
-    for (int i = xOffset; i < xLimit; i++) {
-      int chunkX = treeStartX + i;
-      for (int j = yOffset; j < yLimit; j++) {
-        int chunkY = treeStartY + j;
-        for (int k = zOffset; k < zLimit; k++) {
-          int chunkZ = treeStartZ + k;
-
-          Block block = null;
-          if (i == size.x / 2 && k == size.z / 2) {
-            block = j == size.y - 1 ? leafBlock : woodBlock;
-          } else if (j >= size.y - 2) {
-            if (i > 0 && i < size.x - 1 && k > 0 && k < size.z - 1) {
-              block = leafBlock;
-            }
-          } else if (j >= size.y - 4) {
-            block = leafBlock;
-          }
-
-          if (block != null && blocks[chunkX][chunkY][chunkZ] != woodBlock) {
-            blocks[chunkX][chunkY][chunkZ] = block;
-          }
-        }
-      }
-    }
   }
 
   @Override
