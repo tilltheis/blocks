@@ -266,7 +266,7 @@ public class App extends SimpleApplication {
                   location.x * CHUNK_WIDTH + x,
                   location.y * CHUNK_HEIGHT + y,
                   location.z * CHUNK_DEPTH + z,
-                  height);
+                  terrain);
 
           if (subterrainType.isEmpty()) {
             Block block;
