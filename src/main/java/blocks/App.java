@@ -3,13 +3,15 @@ package blocks;
 import com.jme3.app.SimpleApplication;
 import com.jme3.font.BitmapText;
 import com.jme3.input.KeyInput;
+import com.jme3.input.MouseInput;
 import com.jme3.input.controls.ActionListener;
+import com.jme3.input.controls.AnalogListener;
 import com.jme3.input.controls.KeyTrigger;
+import com.jme3.input.controls.MouseAxisTrigger;
 import com.jme3.light.AmbientLight;
 import com.jme3.light.DirectionalLight;
 import com.jme3.light.Light;
-import com.jme3.math.ColorRGBA;
-import com.jme3.math.Vector3f;
+import com.jme3.math.*;
 import com.jme3.system.AppSettings;
 import com.simsilica.mathd.Vec3i;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +25,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 public class App extends SimpleApplication {
 
+  private static final int regularMovementSpeed = 10;
+  private static final int spectateMovementSpeed = 250;
+
   private ChunkBlockGenerator chunkBlockGenerator;
+  private PlayerSystem playerSystem;
+  private PlayerEntity playerEntity;
 
   public static void main(String[] args) {
     App app = new App();
@@ -71,7 +78,6 @@ public class App extends SimpleApplication {
 
   @Override
   public void simpleInitApp() {
-    flyCam.setMoveSpeed(250);
     cam.setFrustumFar(2048); // default is 1000
 
     if (!shouldKeepCamLocation) {
@@ -101,6 +107,22 @@ public class App extends SimpleApplication {
     chunkMeshGenerationExecutorService =
         Executors.newFixedThreadPool(8, new ChunkGenerationThreadFactory());
     initGrid();
+
+    {
+      playerSystem = new PlayerSystem(chunkGrid);
+
+      int spawnX = 62;
+      int spawnZ = 0;
+      Terrain terrainAtSpawn = terrainGenerator.terrainAt(spawnX, spawnZ);
+      int scaledHeightAtSpawn = (int) ((terrainAtSpawn.height() + 1) / 2 * WORLD_HEIGHT);
+      playerEntity =
+          new PlayerEntity(
+              new Vector3f(spawnX, scaledHeightAtSpawn + 1, spawnZ)
+                  .addLocal(PlayerEntity.size.divide(2)),
+              assetManager);
+      playerSystem.add(playerEntity);
+      rootNode.attachChild(playerEntity.spatial);
+    }
 
     animalSystem = new AnimalSystem(chunkGrid);
 
@@ -148,24 +170,74 @@ public class App extends SimpleApplication {
     }
 
     inputManager.deleteMapping("resetGame");
+    inputManager.deleteMapping("changeCameraMode");
     inputManager.removeListener((ActionListener) this::debugGameListener);
 
     inputManager.deleteMapping("recordShiftKeyPress");
     inputManager.removeListener((ActionListener) this::shiftActionListener);
+
+    inputManager.deleteMapping("movePlayerForward");
+    inputManager.deleteMapping("movePlayerBackward");
+    inputManager.deleteMapping("movePlayerLeft");
+    inputManager.deleteMapping("movePlayerRight");
+    inputManager.removeListener((ActionListener) this::playerActionListener);
+
+    inputManager.deleteMapping("rotatePlayerLeft");
+    inputManager.deleteMapping("rotatePlayerRight");
+    inputManager.deleteMapping("rotatePlayerUp");
+    inputManager.deleteMapping("rotatePlayerDown");
+    inputManager.removeListener((AnalogListener) this::playerAnalogListener);
   }
 
   private void initInputListeners() {
     inputManager.addMapping("resetGame", new KeyTrigger(KeyInput.KEY_R));
-    inputManager.addListener((ActionListener) this::debugGameListener, "resetGame");
+    inputManager.addMapping("changeCameraMode", new KeyTrigger(KeyInput.KEY_SPACE));
+    inputManager.addListener(
+        (ActionListener) this::debugGameListener, "resetGame", "changeCameraMode");
 
     inputManager.addMapping("recordShiftKeyPress", new KeyTrigger(KeyInput.KEY_LSHIFT));
     inputManager.addListener((ActionListener) this::shiftActionListener, "recordShiftKeyPress");
+
+    inputManager.addMapping("movePlayerForward", new KeyTrigger(KeyInput.KEY_W));
+    inputManager.addMapping("movePlayerBackward", new KeyTrigger(KeyInput.KEY_S));
+    inputManager.addMapping("movePlayerLeft", new KeyTrigger(KeyInput.KEY_A));
+    inputManager.addMapping("movePlayerRight", new KeyTrigger(KeyInput.KEY_D));
+    inputManager.addListener(
+        (ActionListener) this::playerActionListener,
+        "movePlayerForward",
+        "movePlayerBackward",
+        "movePlayerLeft",
+        "movePlayerRight");
+
+    inputManager.addMapping(
+        "rotatePlayerLeft",
+        new MouseAxisTrigger(MouseInput.AXIS_X, true),
+        new KeyTrigger(KeyInput.KEY_LEFT));
+    inputManager.addMapping(
+        "rotatePlayerRight",
+        new MouseAxisTrigger(MouseInput.AXIS_X, false),
+        new KeyTrigger(KeyInput.KEY_RIGHT));
+    inputManager.addMapping(
+        "rotatePlayerUp",
+        new MouseAxisTrigger(MouseInput.AXIS_Y, true),
+        new KeyTrigger(KeyInput.KEY_DOWN));
+    inputManager.addMapping(
+        "rotatePlayerDown",
+        new MouseAxisTrigger(MouseInput.AXIS_Y, false),
+        new KeyTrigger(KeyInput.KEY_UP));
+    inputManager.addListener(
+        (AnalogListener) this::playerAnalogListener,
+        "rotatePlayerLeft",
+        "rotatePlayerRight",
+        "rotatePlayerUp",
+        "rotatePlayerDown");
   }
 
   private void shiftActionListener(String name, boolean keyPressed, float tpf) {
     isShiftKeyPressed = keyPressed;
-    if (keyPressed) flyCam.setMoveSpeed(10);
-    else flyCam.setMoveSpeed(250);
+    if (playerEntity.isSpectating) {
+      playerEntity.velocity = isShiftKeyPressed ? regularMovementSpeed : spectateMovementSpeed;
+    }
   }
 
   private void debugGameListener(String name, boolean keyPressed, float tpf) {
@@ -179,6 +251,46 @@ public class App extends SimpleApplication {
         simpleInitApp();
 
         log.info("resetGame");
+      }
+
+      case "changeCameraMode" -> {
+        playerEntity.isSpectating = !playerEntity.isSpectating;
+        playerEntity.velocity =
+            playerEntity.isSpectating ? spectateMovementSpeed : regularMovementSpeed;
+      }
+    }
+  }
+
+  private void playerActionListener(String name, boolean keyPressed, float tpf) {
+    switch (name) {
+      case "movePlayerForward" -> playerEntity.direction.z += keyPressed ? 1 : -1;
+      case "movePlayerBackward" -> playerEntity.direction.z += keyPressed ? -1 : 1;
+      case "movePlayerLeft" -> playerEntity.direction.x += keyPressed ? 1 : -1;
+      case "movePlayerRight" -> playerEntity.direction.x += keyPressed ? -1 : 1;
+    }
+  }
+
+  private void playerAnalogListener(String name, float value, float tpf) {
+    switch (name) {
+      case "rotatePlayerLeft" -> {
+        float[] angles = playerEntity.rotation.toAngles(null);
+        angles[1] += value;
+        playerEntity.rotation.fromAngles(angles);
+      }
+      case "rotatePlayerRight" -> {
+        float[] angles = playerEntity.rotation.toAngles(null);
+        angles[1] -= value;
+        playerEntity.rotation.fromAngles(angles);
+      }
+      case "rotatePlayerUp" -> {
+        float[] angles = playerEntity.rotation.toAngles(null);
+        angles[0] += value;
+        playerEntity.rotation.fromAngles(angles);
+      }
+      case "rotatePlayerDown" -> {
+        float[] angles = playerEntity.rotation.toAngles(null);
+        angles[0] -= value;
+        playerEntity.rotation.fromAngles(angles);
       }
     }
   }
@@ -211,9 +323,16 @@ public class App extends SimpleApplication {
   @Override
   public void simpleUpdate(float tpf) {
     super.simpleUpdate(tpf);
+
     chunkGrid.centerAroundWorldLocation(cam.getLocation());
     chunkGrid.update();
+
+    playerSystem.update(tpf);
     animalSystem.update(tpf);
+
+    cam.setLocation(
+        playerEntity.location.add(PlayerEntity.size.x / 2, PlayerEntity.size.y / 6 * 5 / 2, 0));
+    cam.setRotation(playerEntity.rotation);
   }
 
   private static class ChunkGenerationThreadFactory implements ThreadFactory {
