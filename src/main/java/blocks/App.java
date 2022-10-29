@@ -11,11 +11,14 @@ import com.jme3.input.controls.MouseAxisTrigger;
 import com.jme3.light.AmbientLight;
 import com.jme3.light.DirectionalLight;
 import com.jme3.light.Light;
-import com.jme3.math.*;
+import com.jme3.math.ColorRGBA;
+import com.jme3.math.Vector3f;
 import com.jme3.system.AppSettings;
 import com.simsilica.mathd.Vec3i;
 import lombok.extern.slf4j.Slf4j;
 
+import java.text.CharacterIterator;
+import java.text.StringCharacterIterator;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -31,6 +34,10 @@ public class App extends SimpleApplication {
   private ChunkBlockGenerator chunkBlockGenerator;
   private PlayerSystem playerSystem;
   private PlayerEntity playerEntity;
+  private BitmapText fpsValue;
+  private BitmapText memoryValue;
+  private float secondCounter = 0;
+  private int frameCounter = 0;
 
   public static void main(String[] args) {
     App app = new App();
@@ -79,6 +86,8 @@ public class App extends SimpleApplication {
   @Override
   public void simpleInitApp() {
     cam.setFrustumFar(2048); // default is 1000
+    setDisplayStatView(false);
+    setDisplayFps(false);
 
     if (!shouldKeepCamLocation) {
       cam.setLocation(
@@ -96,6 +105,7 @@ public class App extends SimpleApplication {
     initInputListeners();
 
     createCrosshair();
+    createHud();
 
     terrainGenerator = new TerrainGenerator(seed);
     chunkBlockGenerator =
@@ -164,6 +174,7 @@ public class App extends SimpleApplication {
     chunkMeshGenerationExecutorService.shutdownNow();
 
     rootNode.detachAllChildren();
+    guiNode.detachAllChildren();
 
     for (Light light : rootNode.getLocalLightList()) {
       rootNode.removeLight(light);
@@ -320,9 +331,63 @@ public class App extends SimpleApplication {
     guiNode.attachChild(crosshair);
   }
 
+  private void createHud() {
+    guiFont = assetManager.loadFont("Interface/Fonts/Default.fnt");
+
+    BitmapText fpsLabel = new BitmapText(guiFont);
+    fpsLabel.setText("FPS: ");
+    fpsLabel.setLocalTranslation(0, settings.getHeight(), 0);
+    guiNode.attachChild(fpsLabel);
+
+    fpsValue = new BitmapText(guiFont);
+    fpsValue.setLocalTranslation(fpsLabel.getLineWidth(), settings.getHeight(), 0);
+    guiNode.attachChild(fpsValue);
+
+    BitmapText memoryLabel = new BitmapText(guiFont);
+    memoryLabel.setText("Memory: ");
+    memoryLabel.setLocalTranslation(0, settings.getHeight() - fpsLabel.getLineHeight(), 0);
+    guiNode.attachChild(memoryLabel);
+
+    memoryValue = new BitmapText(guiFont);
+    memoryValue.setLocalTranslation(
+        memoryLabel.getLineWidth(), settings.getHeight() - fpsLabel.getLineHeight(), 0);
+    guiNode.attachChild(memoryValue);
+  }
+
+  // from https://stackoverflow.com/a/3758880/122594
+  private static String humanReadableByteCountBin(long bytes) {
+    long absB = bytes == Long.MIN_VALUE ? Long.MAX_VALUE : Math.abs(bytes);
+    if (absB < 1024) {
+      return bytes + " B";
+    }
+    long value = absB;
+    CharacterIterator ci = new StringCharacterIterator("KMGTPE");
+    for (int i = 40; i >= 0 && absB > 0xfffccccccccccccL >> i; i -= 10) {
+      value >>= 10;
+      ci.next();
+    }
+    value *= Long.signum(bytes);
+    return String.format("%.1f %ciB", value / 1024.0, ci.current());
+  }
+
   @Override
   public void simpleUpdate(float tpf) {
     super.simpleUpdate(tpf);
+
+    memoryValue.setText(
+        humanReadableByteCountBin(
+            Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()));
+
+    {
+      secondCounter += getTimer().getTimePerFrame();
+      frameCounter++;
+      if (secondCounter >= 1.0f) {
+        int fps = (int) (frameCounter / secondCounter);
+        fpsValue.setText(String.valueOf(fps));
+        secondCounter = 0.0f;
+        frameCounter = 0;
+      }
+    }
 
     chunkGrid.centerAroundWorldLocation(cam.getLocation());
     chunkGrid.update();
