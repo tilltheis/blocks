@@ -35,19 +35,19 @@ public class PlayerSystem {
         stepDistance.setY(0);
         entity.location.addLocal(stepDistance);
 
-        if (hasWorldIntersection(entity, 1)) { // height == 2
-          alignLocationWithWorldCoordinates(entity);
+        if (collidesWithWorld(entity, 1)) { // check head
+          resolveWorldCollision(entity, stepDistance, 1);
         } else {
-          if (hasWorldIntersection(entity, 0)) {
-            if (!hasWorldIntersection(entity, 2)) { // height == 2
+          if (collidesWithWorld(entity, 0)) {
+            if (!collidesWithWorld(entity, 2)) { // check above head
               // we already checked for yOffset+1 in if() above
               entity.location.y += 1;
             } else {
-              alignLocationWithWorldCoordinates(entity);
+              resolveWorldCollision(entity, stepDistance, 0);
             }
           } else {
             // this is not good enough to make it fall into single block holes but that's ok for now
-            if (!hasWorldIntersection(entity, -1) && !hasWorldIntersection(entity, -1)) {
+            if (!collidesWithWorld(entity, -1) && !collidesWithWorld(entity, -1)) {
               entity.location.y -= 1;
             }
           }
@@ -58,22 +58,37 @@ public class PlayerSystem {
     }
   }
 
-  private static void alignLocationWithWorldCoordinates(PlayerEntity entity) {
-    Vector3f entityFloorLocation = entity.location.add(0, -entity.size.y / 2f, 0);
-    Vector3f distanceToFrontBodyEdge =
-        entity.rotation.mult(entity.size.mult(new Vector3f(0.5f, 0, 0)));
-    Vector3f frontLocation = entityFloorLocation.addLocal(distanceToFrontBodyEdge);
+  // neither elegant nor performant but simple
+  private void resolveWorldCollision(PlayerEntity entity, Vector3f originalStep, int yOffset) {
+    entity.location.subtractLocal(originalStep);
 
-    Vector3f diff =
-        new Vector3f(
-            entity.direction.x * Math.abs(frontLocation.x % 1),
-            0,
-            entity.direction.z * Math.abs(frontLocation.z % 1));
-    entity.location.subtractLocal(diff);
+    int subStepCount = 10;
+    Vector3f smallStepX = originalStep.mult(new Vector3f(1f / subStepCount, 0, 0));
+    Vector3f smallStepZ = originalStep.mult(new Vector3f(0, 0, 1f / subStepCount));
+    boolean isBlockedX = false;
+    boolean isBlockedZ = false;
+
+    for (int i = 0; i < subStepCount && (!isBlockedX || !isBlockedZ); i++) {
+      if (!isBlockedZ) {
+        entity.location.addLocal(smallStepZ);
+        if (collidesWithWorld(entity, yOffset)) {
+          entity.location.subtractLocal(smallStepZ);
+          isBlockedZ = true;
+        }
+      }
+
+      if (!isBlockedX) {
+        entity.location.addLocal(smallStepX);
+        if (collidesWithWorld(entity, yOffset)) {
+          entity.location.subtractLocal(smallStepX);
+          isBlockedX = true;
+        }
+      }
+    }
   }
 
   // including center block
-  private boolean hasWorldIntersection(PlayerEntity entity, int yOffset) {
+  private boolean collidesWithWorld(PlayerEntity entity, int yOffset) {
     Vector3f entityFloorLocation = entity.location.add(0, yOffset - entity.size.y / 2f, 0);
 
     int centerX = (int) Math.floor(entityFloorLocation.x);
@@ -86,15 +101,15 @@ public class PlayerSystem {
         Optional<Block> optionalBlock =
             chunkGrid.getBlock(centerX - 1 + x, centerY, centerZ - 1 + z);
         if (optionalBlock.isPresent()
-            && hasIntersection(entity, entityFloorLocation, centerX - 1 + x, centerZ - 1 + z))
-          return true;
+            && collidesWithCoordinate(
+                entity, entityFloorLocation, centerX - 1 + x, centerZ - 1 + z)) return true;
       }
     }
 
     return false;
   }
 
-  private boolean hasIntersection(
+  private boolean collidesWithCoordinate(
       PlayerEntity entity, Vector3f entityFloorLocation, int blockX, int blockZ) {
     Rectangle rectangle = new Rectangle(blockX, blockZ, 1, 1);
 
