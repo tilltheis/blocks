@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 public class App extends SimpleApplication {
 
+  private static final int slowMovementSpeed = 1;
   private static final int regularMovementSpeed = 10;
   private static final int spectateMovementSpeed = 250;
 
@@ -248,6 +249,8 @@ public class App extends SimpleApplication {
     isShiftKeyPressed = keyPressed;
     if (playerEntity.isSpectating) {
       playerEntity.velocity = isShiftKeyPressed ? regularMovementSpeed : spectateMovementSpeed;
+    } else {
+      playerEntity.velocity = isShiftKeyPressed ? slowMovementSpeed : regularMovementSpeed;
     }
   }
 
@@ -395,8 +398,7 @@ public class App extends SimpleApplication {
     playerSystem.update(tpf);
     animalSystem.update(tpf);
 
-    cam.setLocation(
-        playerEntity.location.add(PlayerEntity.size.x / 2, PlayerEntity.size.y / 6 * 5 / 2, 0));
+    cam.setLocation(playerEntity.location.add(0, PlayerEntity.size.y / 2, 0));
     cam.setRotation(playerEntity.rotation);
   }
 

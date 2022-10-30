@@ -20,7 +20,7 @@ public class PlayerEntity {
   /** Where player looks at. */
   public Quaternion rotation = Quaternion.IDENTITY.clone();
 
-  public static final Vector3f size = new Vector3f(0.75f, 2, 0.75f);
+  public static final Vector3f size = new Vector3f(1, 2, 1);
 
   /** Movement speed. */
   public float velocity = 10;
