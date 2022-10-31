@@ -37,6 +37,7 @@ public class App extends SimpleApplication {
   private PlayerEntity playerEntity;
   private BitmapText fpsValue;
   private BitmapText memoryValue;
+  private BitmapText locationValue;
   private float secondCounter = 0;
   private int frameCounter = 0;
 
@@ -355,6 +356,16 @@ public class App extends SimpleApplication {
     memoryValue.setLocalTranslation(
         memoryLabel.getLineWidth(), settings.getHeight() - fpsLabel.getLineHeight(), 0);
     guiNode.attachChild(memoryValue);
+
+    BitmapText locationLabel = new BitmapText(guiFont);
+    locationLabel.setText("Location: ");
+    locationLabel.setLocalTranslation(0, settings.getHeight() - fpsLabel.getLineHeight() * 2, 0);
+    guiNode.attachChild(locationLabel);
+
+    locationValue = new BitmapText(guiFont);
+    locationValue.setLocalTranslation(
+        locationLabel.getLineWidth(), settings.getHeight() - fpsLabel.getLineHeight() * 2, 0);
+    guiNode.attachChild(locationValue);
   }
 
   // from https://stackoverflow.com/a/3758880/122594
@@ -391,6 +402,13 @@ public class App extends SimpleApplication {
         frameCounter = 0;
       }
     }
+
+    locationValue.setText(
+        String.format(
+            "%d, %d, %d",
+            (int) playerEntity.location.x,
+            (int) playerEntity.location.y,
+            (int) playerEntity.location.z));
 
     chunkGrid.centerAroundWorldLocation(cam.getLocation());
     chunkGrid.update();
