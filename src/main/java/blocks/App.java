@@ -12,6 +12,7 @@ import com.jme3.light.AmbientLight;
 import com.jme3.light.DirectionalLight;
 import com.jme3.light.Light;
 import com.jme3.math.ColorRGBA;
+import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.system.AppSettings;
 import com.simsilica.mathd.Vec3i;
@@ -58,9 +59,9 @@ public class App extends SimpleApplication {
   private static final int CHUNK_HEIGHT = 32;
   private static final int CHUNK_DEPTH = 32;
 
-  private static final int GRID_WIDTH = 40;
+  private static final int GRID_WIDTH = 50;
   private static final int GRID_HEIGHT = 5;
-  private static final int GRID_DEPTH = 40;
+  private static final int GRID_DEPTH = 50;
 
   public static final int WORLD_HEIGHT = GRID_HEIGHT * CHUNK_HEIGHT;
 
@@ -102,6 +103,10 @@ public class App extends SimpleApplication {
       cam.setLocation(new Vector3f(0, 150, 0));
     }
 
+    flyCam.setMoveSpeed(spectateMovementSpeed);
+    cam.setLocation(new Vector3f(-185.01154f, 168.20741f, 213.03293f));
+    cam.setRotation(new Quaternion(0.06767746f, 0.7297416f, -0.07300129f, 0.6764377f));
+
     viewPort.setBackgroundColor(ColorRGBA.Blue.clone().interpolateLocal(ColorRGBA.White, 0.15f));
 
     initInputListeners();
@@ -120,48 +125,50 @@ public class App extends SimpleApplication {
         Executors.newFixedThreadPool(8, new ChunkGenerationThreadFactory());
     initGrid();
 
-    {
-      playerSystem = new PlayerSystem(chunkGrid);
+    //    {
+    //      playerSystem = new PlayerSystem(chunkGrid);
+    //
+    //      int spawnX = 62;
+    //      int spawnZ = 0;
+    //      Terrain terrainAtSpawn = terrainGenerator.terrainAt(spawnX, spawnZ);
+    //      int scaledHeightAtSpawn = (int) ((terrainAtSpawn.height() + 1) / 2 * WORLD_HEIGHT);
+    //      playerEntity =
+    //          new PlayerEntity(
+    //              new Vector3f(spawnX, scaledHeightAtSpawn + 1, spawnZ)
+    //                  .addLocal(PlayerEntity.size.divide(2)),
+    //              assetManager);
+    //      playerSystem.add(playerEntity);
+    //      rootNode.attachChild(playerEntity.spatial);
+    //    }
+    //
+    //    animalSystem = new AnimalSystem(chunkGrid);
+    //
+    //    {
+    //      int spawnX = 62;
+    //      int spawnZ = 0;
+    //      Terrain terrainAtSpawn = terrainGenerator.terrainAt(spawnX, spawnZ);
+    //      int scaledHeightAtSpawn = (int) ((terrainAtSpawn.height() + 1) / 2 * WORLD_HEIGHT);
+    //      AnimalEntity animalEntity =
+    //          new AnimalEntity(
+    //              new Vector3f(0.5f + spawnX, scaledHeightAtSpawn + 1.5f, 0.5f + spawnZ),
+    // assetManager);
+    //      animalSystem.add(animalEntity);
+    //      rootNode.attachChild(animalEntity.spatial);
+    //    }
 
-      int spawnX = 62;
-      int spawnZ = 0;
-      Terrain terrainAtSpawn = terrainGenerator.terrainAt(spawnX, spawnZ);
-      int scaledHeightAtSpawn = (int) ((terrainAtSpawn.height() + 1) / 2 * WORLD_HEIGHT);
-      playerEntity =
-          new PlayerEntity(
-              new Vector3f(spawnX, scaledHeightAtSpawn + 1, spawnZ)
-                  .addLocal(PlayerEntity.size.divide(2)),
-              assetManager);
-      playerSystem.add(playerEntity);
-      rootNode.attachChild(playerEntity.spatial);
-    }
-
-    animalSystem = new AnimalSystem(chunkGrid);
-
-    {
-      int spawnX = 62;
-      int spawnZ = 0;
-      Terrain terrainAtSpawn = terrainGenerator.terrainAt(spawnX, spawnZ);
-      int scaledHeightAtSpawn = (int) ((terrainAtSpawn.height() + 1) / 2 * WORLD_HEIGHT);
-      AnimalEntity animalEntity =
-          new AnimalEntity(
-              new Vector3f(0.5f + spawnX, scaledHeightAtSpawn + 1.5f, 0.5f + spawnZ), assetManager);
-      animalSystem.add(animalEntity);
-      rootNode.attachChild(animalEntity.spatial);
-    }
-
-    Random random = new Random(seed);
-    for (int i = 0; i < 10; i++) {
-      int spawnX = random.nextInt(100);
-      int spawnZ = random.nextInt(100);
-      Terrain terrainAtSpawn = terrainGenerator.terrainAt(spawnX, spawnZ);
-      int scaledHeightAtSpawn = (int) ((terrainAtSpawn.height() + 1) / 2 * WORLD_HEIGHT);
-      AnimalEntity animalEntity =
-          new AnimalEntity(
-              new Vector3f(0.5f + spawnX, scaledHeightAtSpawn + 1.5f, 0.5f + spawnZ), assetManager);
-      animalSystem.add(animalEntity);
-      rootNode.attachChild(animalEntity.spatial);
-    }
+    //    Random random = new Random(seed);
+    //    for (int i = 0; i < 10; i++) {
+    //      int spawnX = random.nextInt(100);
+    //      int spawnZ = random.nextInt(100);
+    //      Terrain terrainAtSpawn = terrainGenerator.terrainAt(spawnX, spawnZ);
+    //      int scaledHeightAtSpawn = (int) ((terrainAtSpawn.height() + 1) / 2 * WORLD_HEIGHT);
+    //      AnimalEntity animalEntity =
+    //          new AnimalEntity(
+    //              new Vector3f(0.5f + spawnX, scaledHeightAtSpawn + 1.5f, 0.5f + spawnZ),
+    // assetManager);
+    //      animalSystem.add(animalEntity);
+    //      rootNode.attachChild(animalEntity.spatial);
+    //    }
 
     rootNode.addLight(new AmbientLight(new ColorRGBA(0.2f, 0.2f, 0.2f, 1f)));
     rootNode.addLight(
@@ -186,20 +193,20 @@ public class App extends SimpleApplication {
     inputManager.deleteMapping("changeCameraMode");
     inputManager.removeListener((ActionListener) this::debugGameListener);
 
-    inputManager.deleteMapping("recordShiftKeyPress");
-    inputManager.removeListener((ActionListener) this::shiftActionListener);
-
-    inputManager.deleteMapping("movePlayerForward");
-    inputManager.deleteMapping("movePlayerBackward");
-    inputManager.deleteMapping("movePlayerLeft");
-    inputManager.deleteMapping("movePlayerRight");
-    inputManager.removeListener((ActionListener) this::playerActionListener);
-
-    inputManager.deleteMapping("rotatePlayerLeft");
-    inputManager.deleteMapping("rotatePlayerRight");
-    inputManager.deleteMapping("rotatePlayerUp");
-    inputManager.deleteMapping("rotatePlayerDown");
-    inputManager.removeListener((AnalogListener) this::playerAnalogListener);
+    //    inputManager.deleteMapping("recordShiftKeyPress");
+    //    inputManager.removeListener((ActionListener) this::shiftActionListener);
+    //
+    //    inputManager.deleteMapping("movePlayerForward");
+    //    inputManager.deleteMapping("movePlayerBackward");
+    //    inputManager.deleteMapping("movePlayerLeft");
+    //    inputManager.deleteMapping("movePlayerRight");
+    //    inputManager.removeListener((ActionListener) this::playerActionListener);
+    //
+    //    inputManager.deleteMapping("rotatePlayerLeft");
+    //    inputManager.deleteMapping("rotatePlayerRight");
+    //    inputManager.deleteMapping("rotatePlayerUp");
+    //    inputManager.deleteMapping("rotatePlayerDown");
+    //    inputManager.removeListener((AnalogListener) this::playerAnalogListener);
   }
 
   private void initInputListeners() {
@@ -208,42 +215,43 @@ public class App extends SimpleApplication {
     inputManager.addListener(
         (ActionListener) this::debugGameListener, "resetGame", "changeCameraMode");
 
-    inputManager.addMapping("recordShiftKeyPress", new KeyTrigger(KeyInput.KEY_LSHIFT));
-    inputManager.addListener((ActionListener) this::shiftActionListener, "recordShiftKeyPress");
-
-    inputManager.addMapping("movePlayerForward", new KeyTrigger(KeyInput.KEY_W));
-    inputManager.addMapping("movePlayerBackward", new KeyTrigger(KeyInput.KEY_S));
-    inputManager.addMapping("movePlayerLeft", new KeyTrigger(KeyInput.KEY_A));
-    inputManager.addMapping("movePlayerRight", new KeyTrigger(KeyInput.KEY_D));
-    inputManager.addListener(
-        (ActionListener) this::playerActionListener,
-        "movePlayerForward",
-        "movePlayerBackward",
-        "movePlayerLeft",
-        "movePlayerRight");
-
-    inputManager.addMapping(
-        "rotatePlayerLeft",
-        new MouseAxisTrigger(MouseInput.AXIS_X, true),
-        new KeyTrigger(KeyInput.KEY_LEFT));
-    inputManager.addMapping(
-        "rotatePlayerRight",
-        new MouseAxisTrigger(MouseInput.AXIS_X, false),
-        new KeyTrigger(KeyInput.KEY_RIGHT));
-    inputManager.addMapping(
-        "rotatePlayerUp",
-        new MouseAxisTrigger(MouseInput.AXIS_Y, true),
-        new KeyTrigger(KeyInput.KEY_DOWN));
-    inputManager.addMapping(
-        "rotatePlayerDown",
-        new MouseAxisTrigger(MouseInput.AXIS_Y, false),
-        new KeyTrigger(KeyInput.KEY_UP));
-    inputManager.addListener(
-        (AnalogListener) this::playerAnalogListener,
-        "rotatePlayerLeft",
-        "rotatePlayerRight",
-        "rotatePlayerUp",
-        "rotatePlayerDown");
+    //    inputManager.addMapping("recordShiftKeyPress", new KeyTrigger(KeyInput.KEY_LSHIFT));
+    //    inputManager.addListener((ActionListener) this::shiftActionListener,
+    // "recordShiftKeyPress");
+    //
+    //    inputManager.addMapping("movePlayerForward", new KeyTrigger(KeyInput.KEY_W));
+    //    inputManager.addMapping("movePlayerBackward", new KeyTrigger(KeyInput.KEY_S));
+    //    inputManager.addMapping("movePlayerLeft", new KeyTrigger(KeyInput.KEY_A));
+    //    inputManager.addMapping("movePlayerRight", new KeyTrigger(KeyInput.KEY_D));
+    //    inputManager.addListener(
+    //        (ActionListener) this::playerActionListener,
+    //        "movePlayerForward",
+    //        "movePlayerBackward",
+    //        "movePlayerLeft",
+    //        "movePlayerRight");
+    //
+    //    inputManager.addMapping(
+    //        "rotatePlayerLeft",
+    //        new MouseAxisTrigger(MouseInput.AXIS_X, true),
+    //        new KeyTrigger(KeyInput.KEY_LEFT));
+    //    inputManager.addMapping(
+    //        "rotatePlayerRight",
+    //        new MouseAxisTrigger(MouseInput.AXIS_X, false),
+    //        new KeyTrigger(KeyInput.KEY_RIGHT));
+    //    inputManager.addMapping(
+    //        "rotatePlayerUp",
+    //        new MouseAxisTrigger(MouseInput.AXIS_Y, true),
+    //        new KeyTrigger(KeyInput.KEY_DOWN));
+    //    inputManager.addMapping(
+    //        "rotatePlayerDown",
+    //        new MouseAxisTrigger(MouseInput.AXIS_Y, false),
+    //        new KeyTrigger(KeyInput.KEY_UP));
+    //    inputManager.addListener(
+    //        (AnalogListener) this::playerAnalogListener,
+    //        "rotatePlayerLeft",
+    //        "rotatePlayerRight",
+    //        "rotatePlayerUp",
+    //        "rotatePlayerDown");
   }
 
   private void shiftActionListener(String name, boolean keyPressed, float tpf) {
@@ -403,21 +411,21 @@ public class App extends SimpleApplication {
       }
     }
 
-    locationValue.setText(
-        String.format(
-            "%d, %d, %d",
-            (int) playerEntity.location.x,
-            (int) playerEntity.location.y,
-            (int) playerEntity.location.z));
+    //    locationValue.setText(
+    //        String.format(
+    //            "%d, %d, %d",
+    //            (int) playerEntity.location.x,
+    //            (int) playerEntity.location.y,
+    //            (int) playerEntity.location.z));
 
     chunkGrid.centerAroundWorldLocation(cam.getLocation());
     chunkGrid.update();
 
-    playerSystem.update(tpf);
-    animalSystem.update(tpf);
+    //    playerSystem.update(tpf);
+    //    animalSystem.update(tpf);
 
-    cam.setLocation(playerEntity.location.add(0, PlayerEntity.size.y / 2, 0));
-    cam.setRotation(playerEntity.rotation);
+    //    cam.setLocation(playerEntity.location.add(0, PlayerEntity.size.y / 2, 0));
+    //    cam.setRotation(playerEntity.rotation);
   }
 
   private static class ChunkGenerationThreadFactory implements ThreadFactory {

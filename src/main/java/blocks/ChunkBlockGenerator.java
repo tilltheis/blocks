@@ -69,12 +69,12 @@ public class ChunkBlockGenerator {
         int scaledHeight = (int) ((height + 1) / 2 * App.WORLD_HEIGHT);
 
         for (int y = 0; y < chunkSize.y && y <= scaledHeight - (location.y * chunkSize.y); y++) {
-          Optional<TerrainType> subterrainType =
-              terrainGenerator.subterrainAt(
-                  location.x * chunkSize.x + x,
-                  location.y * chunkSize.y + y,
-                  location.z * chunkSize.z + z,
-                  terrain);
+          Optional<TerrainType> subterrainType = Optional.empty();
+          //              terrainGenerator.subterrainAt(
+          //                  location.x * chunkSize.x + x,
+          //                  location.y * chunkSize.y + y,
+          //                  location.z * chunkSize.z + z,
+          //                  terrain);
 
           Block block;
 

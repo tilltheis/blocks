@@ -69,31 +69,31 @@ public class TerrainGenerator {
 
     float interpolatedValue = scaledFlatlandValue;
 
-    float mountainDifference = scaledMountainValue - scaledFlatlandValue;
-
-    if (mountainDifference > 0) {
-      if (mountainDifference <= 0.2f) {
-        float mu = mountainDifference * 5;
-        interpolatedValue = cosineInterpolation(scaledMountainValue, scaledFlatlandValue, mu);
-      } else {
-        interpolatedValue = scaledMountainValue;
-      }
-
-      terrainType = TerrainType.MOUNTAIN;
-    }
-
-    if (scaledHillValue > 0) {
-      interpolatedValue += scaledHillValue;
-      terrainType = TerrainType.HILL;
-    }
-
-    if (scaledOceanValue < -0.2f) {
-      interpolatedValue += (scaledOceanValue + 0.2f);
-    }
-
-    if (interpolatedValue < -0.2f) {
-      terrainType = TerrainType.OCEAN_BED;
-    }
+    //    float mountainDifference = scaledMountainValue - scaledFlatlandValue;
+    //
+    //    if (mountainDifference > 0) {
+    //      if (mountainDifference <= 0.2f) {
+    //        float mu = mountainDifference * 5;
+    //        interpolatedValue = cosineInterpolation(scaledMountainValue, scaledFlatlandValue, mu);
+    //      } else {
+    //        interpolatedValue = scaledMountainValue;
+    //      }
+    //
+    //      terrainType = TerrainType.MOUNTAIN;
+    //    }
+    //
+    //    if (scaledHillValue > 0) {
+    //      interpolatedValue += scaledHillValue;
+    //      terrainType = TerrainType.HILL;
+    //    }
+    //
+    //    if (scaledOceanValue < -0.2f) {
+    //      interpolatedValue += (scaledOceanValue + 0.2f);
+    //    }
+    //
+    //    if (interpolatedValue < -0.2f) {
+    //      terrainType = TerrainType.OCEAN_BED;
+    //    }
 
     float temperatureFalloff = 0.5f;
     return new TerrainHeight(
