@@ -2,6 +2,17 @@
 
 A Minecraft-style world generator.
 
+## Running
+
+The app has only been tested on Windows 10 and 11, using Java 17 and Maven.
+
+jMonkeyEngine doesn't properly support macOS.
+Maybe the app works on Linux.
+
+```shell
+mvn compile exec:java
+```
+
 ## Ideas
 
 * place random paths that lead through the map, building bridges across rivers, tunnels through mountains, etc
