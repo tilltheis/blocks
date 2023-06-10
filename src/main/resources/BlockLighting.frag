@@ -114,10 +114,15 @@ vec3 overlay(vec3 baseColor, vec3 overlayColor) {
 void main(){
     // MY CHANGE
     // i also replaced all occurences of `texCoord` with `tiledTexCoord`
-    vec2 tiledTexCoord;
-    if (mod(worldPos.x, 1) == 0) tiledTexCoord = vec2(mod(worldPos.z, 1), mod(worldPos.y, 1));
-    else if (mod(worldPos.y, 1) == 0) tiledTexCoord = vec2(mod(worldPos.x, 1), mod(worldPos.z, 1));
-    else tiledTexCoord = vec2(mod(worldPos.x, 1), mod(worldPos.y, 1));
+    vec2 tiledTexCoord = texCoord;
+    //tiledTexCoord = vec2(fract(worldPos.z), fract(worldPos.y));
+    //if (fract(worldPos.x) == 0) tiledTexCoord = vec2(fract(worldPos.z), fract(worldPos.y));
+    //else if (fract(worldPos.y) == 0) tiledTexCoord = vec2(fract(worldPos.x), fract(worldPos.z));
+    //else tiledTexCoord = vec2(fract(worldPos.x), fract(worldPos.y));
+
+    //if (fract(worldPos.x) == 0) tiledTexCoord = vec2(fract(worldPos.z), fract(worldPos.y));
+    //else if (fract(worldPos.y) == 0) tiledTexCoord = vec2(fract(worldPos.x), fract(worldPos.z));
+    //else tiledTexCoord = vec2(fract(worldPos.x), fract(worldPos.y));
 
     vec2 newTexCoord;
 
@@ -153,7 +158,7 @@ void main(){
     #ifdef ANIMATE_AS_WATER
     // rotate the grayscale value of the light pixels over time
     if (grayscaleValue >= 0.5){
-        grayscaleValue += mod(g_Time/1.5, 1);
+        grayscaleValue += fract(g_Time/1.5);
         if (grayscaleValue > 1) grayscaleValue = 2 - grayscaleValue;
         if (grayscaleValue < 0.5) grayscaleValue = 1 - grayscaleValue;
     }

@@ -33,8 +33,10 @@ public class BlockMaterial {
     materials = new HashMap<>(blockTypes.length, 1f);
 
     for (BlockType blockType : blockTypes) {
-      Material material = new Material(assetManager, "BlockLighting.j3md");
+//      Material material = new Material(assetManager, "Common/MatDefs/Light/Lighting.j3md");
+        Material material = new Material(assetManager, "BlockLighting.j3md");
       Texture texture = assetManager.loadTexture(new TextureKey("tile.png", true));
+      texture.setWrap(Texture.WrapMode.Repeat);
       material.setTexture("DiffuseMap", texture);
 
       Vector4f[] gradient =

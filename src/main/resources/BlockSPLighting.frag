@@ -107,10 +107,10 @@ vec3 overlay(vec3 baseColor, vec3 overlayColor) {
 void main(){
     // MY CHANGE
     // i also replaced all occurences of `texCoord` with `tiledTexCoord`
-    vec2 tiledTexCoord;
-    if (mod(worldPos.x, 1) == 0) tiledTexCoord = vec2(mod(worldPos.z, 1), mod(worldPos.y, 1));
-    else if (mod(worldPos.y, 1) == 0) tiledTexCoord = vec2(mod(worldPos.x, 1), mod(worldPos.z, 1));
-    else tiledTexCoord = vec2(mod(worldPos.x, 1), mod(worldPos.y, 1));
+    vec2 tiledTexCoord = texCoord;
+    //if (fract(worldPos.x) == 0) tiledTexCoord = vec2(fract(worldPos.z), fract(worldPos.y));
+    //else if (fract(worldPos.y) == 0) tiledTexCoord = vec2(fract(worldPos.x), fract(worldPos.z));
+    //else tiledTexCoord = vec2(fract(worldPos.x), fract(worldPos.y));
 
     #if !defined(VERTEX_LIGHTING)
     #if defined(NORMALMAP)
