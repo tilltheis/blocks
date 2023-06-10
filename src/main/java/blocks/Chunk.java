@@ -307,6 +307,7 @@ public class Chunk {
     String name = MessageFormat.format("block={0} location={1} size={2}", block, location, size);
     Geometry geometry = new Geometry(name, mesh);
     geometry.setMaterial(blockMaterial.forBlock(block));
+    geometry.setShadowMode(RenderQueue.ShadowMode.CastAndReceive);
     if (block.isTransparent()) {
       geometry.setQueueBucket(RenderQueue.Bucket.Transparent);
     }
