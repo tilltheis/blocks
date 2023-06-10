@@ -13,6 +13,8 @@ import com.jme3.light.DirectionalLight;
 import com.jme3.light.Light;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
+import com.jme3.shadow.DirectionalLightShadowRenderer;
+import com.jme3.shadow.EdgeFilteringMode;
 import com.jme3.system.AppSettings;
 import com.simsilica.mathd.Vec3i;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +43,8 @@ public class App extends SimpleApplication {
   private float secondCounter = 0;
   private int frameCounter = 0;
 
+  DirectionalLight directionalLight;
+
   public static void main(String[] args) {
     App app = new App();
 
@@ -63,6 +67,9 @@ public class App extends SimpleApplication {
   private static final int GRID_DEPTH = 40;
 
   public static final int WORLD_HEIGHT = GRID_HEIGHT * CHUNK_HEIGHT;
+
+  private static final boolean ENABLE_SHADOWS = true;
+  private static final int SHADOWMAP_SIZE = 1024;
 
   ChunkGrid chunkGrid;
 
@@ -108,6 +115,7 @@ public class App extends SimpleApplication {
 
     createCrosshair();
     createHud();
+
 
     terrainGenerator = new TerrainGenerator(seed);
     chunkBlockGenerator =
@@ -164,9 +172,18 @@ public class App extends SimpleApplication {
     }
 
     rootNode.addLight(new AmbientLight(new ColorRGBA(0.2f, 0.2f, 0.2f, 1f)));
-    rootNode.addLight(
-        new DirectionalLight(
-            new Vector3f(-0.1f, -1f, -0.1f).normalizeLocal(), new ColorRGBA(2f, 2f, 2f, 1f)));
+
+    directionalLight = new DirectionalLight(new Vector3f(0f, -1f, -0.5f).normalizeLocal(), new ColorRGBA(1f, 1f, 1f, 1f));
+    rootNode.addLight(directionalLight);
+
+    if (ENABLE_SHADOWS) {
+      DirectionalLightShadowRenderer dlsr = new DirectionalLightShadowRenderer(assetManager, SHADOWMAP_SIZE, 1);
+      dlsr.setLight(directionalLight);
+      dlsr.setLambda(0.55f);
+      dlsr.setShadowIntensity(0.8f);
+      dlsr.setEdgeFilteringMode(EdgeFilteringMode.PCF8);
+      viewPort.addProcessor(dlsr);
+    }
   }
 
   private void cleanup() {
@@ -181,6 +198,8 @@ public class App extends SimpleApplication {
     for (Light light : rootNode.getLocalLightList()) {
       rootNode.removeLight(light);
     }
+
+    viewPort.clearProcessors();
 
     inputManager.deleteMapping("resetGame");
     inputManager.deleteMapping("changeCameraMode");
