@@ -233,9 +233,6 @@ public class Chunk {
         locationVector3f.add(lengthVector3f.mult(upperLeftRotation.add(0.5f, 0.5f, 0.5f))),
         locationVector3f.add(lengthVector3f.mult(upperRightRotation.add(0.5f, 0.5f, 0.5f))));
 
-//    private static final Vector2f[] meshTextureCoordinates = {
-//            new Vector2f(0, 0), new Vector2f(1, 0), new Vector2f(0, 1), new Vector2f(1, 1)
-//    };
     Vector2f[] coords;
     if (direction.x != 0){
       coords = new Vector2f[]{
