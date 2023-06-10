@@ -46,9 +46,7 @@ public class Chunk {
           new Quaternion().fromAngleAxis(FastMath.HALF_PI, Vector3f.UNIT_Y),
           new Vec3i(1, 0, 0), // right
           new Quaternion().fromAngleAxis(-FastMath.HALF_PI, Vector3f.UNIT_Y));
-  private static final Vector2f[] meshTextureCoordinates = {
-    new Vector2f(0, 0), new Vector2f(1, 0), new Vector2f(0, 1), new Vector2f(1, 1)
-  };
+
   private final ChunkGrid chunkGrid;
 
   private final BlockMaterial blockMaterial;
