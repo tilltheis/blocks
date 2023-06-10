@@ -12,7 +12,6 @@ import com.jme3.light.AmbientLight;
 import com.jme3.light.DirectionalLight;
 import com.jme3.light.Light;
 import com.jme3.math.ColorRGBA;
-import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.shadow.DirectionalLightShadowRenderer;
 import com.jme3.shadow.EdgeFilteringMode;
@@ -44,8 +43,7 @@ public class App extends SimpleApplication {
     private float secondCounter = 0;
     private int frameCounter = 0;
 
-    DirectionalLight l = new DirectionalLight(
-            new Vector3f(1.0f, -1f, -0.5f).normalizeLocal(), new ColorRGBA(1f, 1f, 1f, 1f));
+    DirectionalLight directionalLight;
 
     public static void main(String[] args) {
         App app = new App();
@@ -69,6 +67,9 @@ public class App extends SimpleApplication {
     private static final int GRID_DEPTH = 40;
 
     public static final int WORLD_HEIGHT = GRID_HEIGHT * CHUNK_HEIGHT;
+
+    private static final boolean ENABLE_SHADOWS = true;
+    private static final int SHADOWMAP_SIZE = 1024;
 
     ChunkGrid chunkGrid;
 
@@ -172,15 +173,17 @@ public class App extends SimpleApplication {
 
         rootNode.addLight(new AmbientLight(new ColorRGBA(0.2f, 0.2f, 0.2f, 1f)));
 
-        int SHADOWMAP_SIZE = 1024;
-        rootNode.addLight(l);
+        directionalLight = new DirectionalLight(new Vector3f(0f, -1f, -0.5f).normalizeLocal(), new ColorRGBA(1f, 1f, 1f, 1f));
+        rootNode.addLight(directionalLight);
 
-        DirectionalLightShadowRenderer dlsr = new DirectionalLightShadowRenderer(assetManager, SHADOWMAP_SIZE, 3);
-        dlsr.setLight(l);
-        dlsr.setLambda(0.55f);
-        dlsr.setShadowIntensity(0.8f);
-        dlsr.setEdgeFilteringMode(EdgeFilteringMode.PCF8);
-        viewPort.addProcessor(dlsr);
+        if (ENABLE_SHADOWS) {
+            DirectionalLightShadowRenderer dlsr = new DirectionalLightShadowRenderer(assetManager, SHADOWMAP_SIZE, 1);
+            dlsr.setLight(directionalLight);
+            dlsr.setLambda(0.55f);
+            dlsr.setShadowIntensity(0.8f);
+            dlsr.setEdgeFilteringMode(EdgeFilteringMode.PCF8);
+            viewPort.addProcessor(dlsr);
+        }
     }
 
     private void cleanup() {
@@ -195,6 +198,8 @@ public class App extends SimpleApplication {
         for (Light light : rootNode.getLocalLightList()) {
             rootNode.removeLight(light);
         }
+
+        viewPort.clearProcessors();
 
         inputManager.deleteMapping("resetGame");
         inputManager.deleteMapping("changeCameraMode");
@@ -429,11 +434,6 @@ public class App extends SimpleApplication {
 
         playerSystem.update(tpf);
         animalSystem.update(tpf);
-
-        var dir = l.getDirection();
-        dir = dir.add(tpf,0,0);
-        if (dir.x > 1) dir.x = -1f;
-        l.setDirection(dir);
 
         cam.setLocation(playerEntity.location.add(0, PlayerEntity.size.y / 2, 0));
         cam.setRotation(playerEntity.rotation);
