@@ -193,7 +193,7 @@ MaterialDef Phong Lighting {
 
         LightMode MultiPass
 
-        VertexShader GLSL310 GLSL300 GLSL100 GLSL150:   BlockLighting.vert
+        VertexShader GLSL310 GLSL300 GLSL100 GLSL150:   Common/MatDefs/Light/Lighting.vert
         FragmentShader GLSL310 GLSL300 GLSL100 GLSL150: BlockLighting.frag
 
         WorldParameters {

@@ -7,7 +7,6 @@
 #endif
 
 // MY CHANGE
-varying vec4 worldPos;
 #ifdef OVERLAY_GRADIENT
 uniform vec4[OVERLAY_GRADIENT_STEPS] m_OverlayGradient;
 #else
