@@ -112,13 +112,6 @@ vec3 overlay(vec3 baseColor, vec3 overlayColor) {
 }
 
 void main(){
-    // MY CHANGE
-    // i also replaced all occurences of `texCoord` with `tiledTexCoord`
-    vec2 tiledTexCoord;
-    if (mod(worldPos.x, 1) == 0) tiledTexCoord = vec2(mod(worldPos.z, 1), mod(worldPos.y, 1));
-    else if (mod(worldPos.y, 1) == 0) tiledTexCoord = vec2(mod(worldPos.x, 1), mod(worldPos.z, 1));
-    else tiledTexCoord = vec2(mod(worldPos.x, 1), mod(worldPos.y, 1));
-
     vec2 newTexCoord;
 
     #if (defined(PARALLAXMAP) || (defined(NORMALMAP_PARALLAX) && defined(NORMALMAP))) && !defined(VERTEX_LIGHTING)
@@ -126,22 +119,22 @@ void main(){
     #ifdef STEEP_PARALLAX
     #ifdef NORMALMAP_PARALLAX
     //parallax map is stored in the alpha channel of the normal map
-    newTexCoord = steepParallaxOffset(m_NormalMap, vViewDirPrlx, tiledTexCoord, m_ParallaxHeight);
+    newTexCoord = steepParallaxOffset(m_NormalMap, vViewDirPrlx, texCoord, m_ParallaxHeight);
     #else
     //parallax map is a texture
-    newTexCoord = steepParallaxOffset(m_ParallaxMap, vViewDirPrlx, tiledTexCoord, m_ParallaxHeight);
+    newTexCoord = steepParallaxOffset(m_ParallaxMap, vViewDirPrlx, texCoord, m_ParallaxHeight);
     #endif
     #else
     #ifdef NORMALMAP_PARALLAX
     //parallax map is stored in the alpha channel of the normal map
-    newTexCoord = classicParallaxOffset(m_NormalMap, vViewDirPrlx, tiledTexCoord, m_ParallaxHeight);
+    newTexCoord = classicParallaxOffset(m_NormalMap, vViewDirPrlx, texCoord, m_ParallaxHeight);
     #else
     //parallax map is a texture
-    newTexCoord = classicParallaxOffset(m_ParallaxMap, vViewDirPrlx, tiledTexCoord, m_ParallaxHeight);
+    newTexCoord = classicParallaxOffset(m_ParallaxMap, vViewDirPrlx, texCoord, m_ParallaxHeight);
     #endif
     #endif
     #else
-    newTexCoord = tiledTexCoord;
+    newTexCoord = texCoord;
     #endif
 
     #ifdef DIFFUSEMAP
@@ -153,7 +146,7 @@ void main(){
     #ifdef ANIMATE_AS_WATER
     // rotate the grayscale value of the light pixels over time
     if (grayscaleValue >= 0.5){
-        grayscaleValue += mod(g_Time/1.5, 1);
+        grayscaleValue += fract(g_Time/1.5);
         if (grayscaleValue > 1) grayscaleValue = 2 - grayscaleValue;
         if (grayscaleValue < 0.5) grayscaleValue = 1 - grayscaleValue;
     }
@@ -212,7 +205,7 @@ void main(){
     #ifdef SEPARATE_TEXCOORD
     lightMapColor = texture2D(m_LightMap, texCoord2).rgb;
     #else
-    lightMapColor = texture2D(m_LightMap, tiledTexCoord).rgb;
+    lightMapColor = texture2D(m_LightMap, texCoord).rgb;
     #endif
     specularColor.rgb *= lightMapColor;
     diffuseColor.rgb  *= lightMapColor;

@@ -46,9 +46,7 @@ public class Chunk {
           new Quaternion().fromAngleAxis(FastMath.HALF_PI, Vector3f.UNIT_Y),
           new Vec3i(1, 0, 0), // right
           new Quaternion().fromAngleAxis(-FastMath.HALF_PI, Vector3f.UNIT_Y));
-  private static final Vector2f[] meshTextureCoordinates = {
-    new Vector2f(0, 0), new Vector2f(1, 0), new Vector2f(0, 1), new Vector2f(1, 1)
-  };
+
   private final ChunkGrid chunkGrid;
 
   private final BlockMaterial blockMaterial;
@@ -233,7 +231,21 @@ public class Chunk {
         locationVector3f.add(lengthVector3f.mult(upperLeftRotation.add(0.5f, 0.5f, 0.5f))),
         locationVector3f.add(lengthVector3f.mult(upperRightRotation.add(0.5f, 0.5f, 0.5f))));
 
-    Collections.addAll(meshData.textureCoordinates, meshTextureCoordinates);
+    Vector2f[] coords;
+    if (direction.x != 0){
+      coords = new Vector2f[]{
+          new Vector2f(0, 0), new Vector2f(length.z, 0), new Vector2f(0, length.y), new Vector2f(length.z, length.y)
+      };
+    } else if (direction.y != 0){
+      coords = new Vector2f[]{
+          new Vector2f(0, 0), new Vector2f(length.x, 0), new Vector2f(0, length.z), new Vector2f(length.x, length.z)
+      };
+    } else {
+      coords = new Vector2f[]{
+          new Vector2f(0, 0), new Vector2f(length.x, 0), new Vector2f(0, length.y), new Vector2f(length.x, length.y)
+      };
+    }
+    Collections.addAll(meshData.textureCoordinates, coords);
 
     Collections.addAll(
         meshData.indexes, index + 2, index + 3, index + 1, index + 1, index + 0, index + 2);

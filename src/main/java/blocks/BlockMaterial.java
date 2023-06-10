@@ -35,6 +35,7 @@ public class BlockMaterial {
     for (BlockType blockType : blockTypes) {
       Material material = new Material(assetManager, "BlockLighting.j3md");
       Texture texture = assetManager.loadTexture(new TextureKey("tile.png", true));
+      texture.setWrap(Texture.WrapMode.Repeat);
       material.setTexture("DiffuseMap", texture);
 
       Vector4f[] gradient =
