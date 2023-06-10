@@ -149,7 +149,8 @@ public class Chunk {
             Block block = getNullableBlock(x, y, z);
             blockLocation.set(x, y, z);
 
-            if (block != null && isVisibleFrom(block, blockLocation, direction)) {
+//            if (block != null && isVisibleFrom(block, blockLocation, direction)) {
+            if (block != null) {
               greedyMeshSize(block, blockLocation, direction, mask, inMeshSize);
               updateMeshData(
                   blockToMeshData, rotation, block, direction, blockLocation, inMeshSize);
@@ -174,37 +175,42 @@ public class Chunk {
 
   private void greedyMeshSize(
       Block block, Vec3i blockLocation, Vec3i direction, boolean[][][] mask, Vec3i outMeshSize) {
-    int xLen = equalBlockCountInDirection(block, blockLocation, UNIT_X, direction, mask);
+    outMeshSize.x = 1;
+    outMeshSize.y = 1;
+    outMeshSize.z = 1;
+    return;
 
-    int zLen = Integer.MAX_VALUE;
-    for (int offset = 0; offset < xLen; offset++) {
-      int count =
-          equalBlockCountInDirection(
-              block, blockLocation.add(offset, 0, 0), UNIT_Z, direction, mask);
-      if (count < zLen) zLen = count;
-    }
-
-    int yLen = Integer.MAX_VALUE;
-    for (int xOffset = 0; xOffset < xLen; xOffset++) {
-      for (int zOffset = 0; zOffset < zLen; zOffset++) {
-        int count =
-            equalBlockCountInDirection(
-                block, blockLocation.add(xOffset, 0, zOffset), UNIT_Y, direction, mask);
-        if (count < yLen) yLen = count;
-      }
-    }
-
-    for (int i = 0; i < xLen; i++) {
-      for (int k = 0; k < zLen; k++) {
-        for (int j = 0; j < yLen; j++) {
-          mask[blockLocation.x + i][blockLocation.y + j][blockLocation.z + k] = true;
-        }
-      }
-    }
-
-    outMeshSize.x = xLen;
-    outMeshSize.y = yLen;
-    outMeshSize.z = zLen;
+//    int xLen = equalBlockCountInDirection(block, blockLocation, UNIT_X, direction, mask);
+//
+//    int zLen = Integer.MAX_VALUE;
+//    for (int offset = 0; offset < xLen; offset++) {
+//      int count =
+//          equalBlockCountInDirection(
+//              block, blockLocation.add(offset, 0, 0), UNIT_Z, direction, mask);
+//      if (count < zLen) zLen = count;
+//    }
+//
+//    int yLen = Integer.MAX_VALUE;
+//    for (int xOffset = 0; xOffset < xLen; xOffset++) {
+//      for (int zOffset = 0; zOffset < zLen; zOffset++) {
+//        int count =
+//            equalBlockCountInDirection(
+//                block, blockLocation.add(xOffset, 0, zOffset), UNIT_Y, direction, mask);
+//        if (count < yLen) yLen = count;
+//      }
+//    }
+//
+//    for (int i = 0; i < xLen; i++) {
+//      for (int k = 0; k < zLen; k++) {
+//        for (int j = 0; j < yLen; j++) {
+//          mask[blockLocation.x + i][blockLocation.y + j][blockLocation.z + k] = true;
+//        }
+//      }
+//    }
+//
+//    outMeshSize.x = xLen;
+//    outMeshSize.y = yLen;
+//    outMeshSize.z = zLen;
   }
 
   private void updateMeshData(
